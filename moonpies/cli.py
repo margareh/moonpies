@@ -43,6 +43,7 @@ def run():
         help="skip if out_path dir already exists"
     )
     args = parser.parse_args()
+    print(args)
 
     # Get Cfg from file (if provided), overwrite seed (if provided), else default
     cfg = config.read_custom_cfg(args.cfg, args.seed)
