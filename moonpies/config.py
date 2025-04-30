@@ -120,6 +120,7 @@ class Cfg:
     config_py_out: str = f'config_{run_name}_v{__version__}.py'
     agegrd_npy_out: str = 'age_grid.npy'
     ejmatrix_npy_out: str = 'ejecta_matrix.npy'
+    icecol_npy_out: str = 'ice_columns_grid.npy'
 
     # Grid and time size and resolution
     dtype = np.float32  # np.float64 (32 should be good for most purposes)

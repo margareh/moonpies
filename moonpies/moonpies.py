@@ -759,6 +759,20 @@ def get_ejecta_thickness_matrix(df, ej_dists, cfg=CFG):
     return get_ejecta_thickness(ej_dists, rad, cfg)
 
 
+def get_ice_columns_grid(strat_cols, df, grdx, grdy, cfg):
+    """Return combined ice columns in grid form """
+    dist_grid = get_gc_dist_grid(df, grdx, grdy, cfg, mask=False)
+    
+    # print(dist_grid.shape) # 51 x 801 x 801
+    # print(strat_cols.keys()) # keys are the PSR names -> what about the non-named PSRs?
+    # print(strat_cols['Haworth']) # 3 arrays: [ice, ej, ej_src]
+    # print(strat_cols['Haworth'][0].shape) # 425 (this is time)
+
+    # expand distance grid to be 
+
+    return None
+
+
 def ages2time(
     time_arr, ages, values, agg=np.nansum, fillval=0, dtype=None, cfg=CFG
 ):
@@ -2430,7 +2444,7 @@ def specific_heat_capacity(T, cfg=CFG):
 
 
 # Gridded outputs
-def get_grid_outputs(df, grdx, grdy, cfg=CFG):
+def get_grid_outputs(strat_cols, df, grdx, grdy, cfg=CFG):
     """Return gridded age of most recent impact and ejecta thickness.
 
     Parameters
@@ -2464,11 +2478,19 @@ def get_grid_outputs(df, grdx, grdy, cfg=CFG):
     # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
     rad = df.rad.values[:, np.newaxis, np.newaxis]
     ej_thick_grid = get_ejecta_thickness(dist_grid, rad, cfg)
-    # TODO: ballistic sed depth, kinetic energy, etc
-    return age_grid, ej_thick_grid
+
+    # TODO: ballistic sed depth
 
 
-def get_gc_dist_grid(df, grdx, grdy, cfg=CFG):
+    # TODO: kinetic energy
+
+    # TODO: ice columns
+    ice_col_grid = get_ice_columns_grid(strat_cols, df, grdx, grdy, cfg)
+
+    return age_grid, ej_thick_grid, ice_col_grid
+
+
+def get_gc_dist_grid(df, grdx, grdy, cfg=CFG, mask=True):
     """Return gridded great circle distance from each crater
 
     Parameters
@@ -2497,12 +2519,13 @@ def get_gc_dist_grid(df, grdx, grdy, cfg=CFG):
     for i, row in df.iterrows():
         clon, clat, crad = row[["lon", "lat", "rad"]]
         grd_dist[i] = gc_dist(clon, clat, grdlon, grdlat)
-        
-        cmask = grd_dist[i] < crad  # Mask crater interior
-        thresh = cfg.basin_ej_threshold if row.isbasin else cfg.ej_threshold
-        ejmask = grd_dist[i] > thresh * crad  # Mask ejecta exterior
-        grd_dist[i] = np.where(cmask, np.nan, grd_dist[i])
-        grd_dist[i] = np.where(ejmask, np.nan, grd_dist[i])
+
+        if mask:
+            cmask = grd_dist[i] < crad  # Mask crater interior
+            thresh = cfg.basin_ej_threshold if row.isbasin else cfg.ej_threshold
+            ejmask = grd_dist[i] > thresh * crad  # Mask ejecta exterior
+            grd_dist[i] = np.where(cmask, np.nan, grd_dist[i])
+            grd_dist[i] = np.where(ejmask, np.nan, grd_dist[i])
 
     return grd_dist
 
@@ -2676,8 +2699,8 @@ def format_save_outputs(strat_cols, time_arr, df, cfg=CFG):
         # Age grid is age of most recent impact (2D array: NX, NY)
         vprint(cfg, "Computing gridded outputs...")
         grdy, grdx = get_grid_arrays(cfg)
-        grd_outputs = get_grid_outputs(df, grdx, grdy, cfg)
-        npy_fnames = (cfg.agegrd_npy_out, cfg.ejmatrix_npy_out)
+        grd_outputs = get_grid_outputs(strat_cols, df, grdx, grdy, cfg)
+        npy_fnames = (cfg.agegrd_npy_out, cfg.ejmatrix_npy_out, cfg.icecol_npy_out)
         vprint(cfg, f"Saving npy outputs to {cfg.out_path}")
         save_outputs(grd_outputs, npy_fnames)
     return strat_dfs
