@@ -1,0 +1,5 @@
+"""
+Volcanic emplacement module
+"""
+
+
