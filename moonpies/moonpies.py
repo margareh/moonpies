@@ -15,13 +15,20 @@ Edited by Margaret Hansen, 5-15-2025
 
 """
 
-import os
-import gc
-from functools import lru_cache, _lru_cache_wrapper
 import numpy as np
-from scipy import stats
 import pandas as pd
+
 from moonpies import config
+
+from moonpies.utils.utils import vprint, clear_cache, get_coldtrap_dists
+from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
+from moonpies.utils.load_data import read_crater_list, read_basin_list
+from moonpies.utils.save_output import get_ejecta_thickness_time, format_save_outputs
+
+from moonpies.processes.ballistic import get_bsed_depth
+from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
+from moonpies.processes.volcanic import get_volcanic_ice
+from moonpies.processes.solar_wind import get_solar_wind_ice
 
 
 class MoonPIES():
@@ -39,31 +46,104 @@ class MoonPIES():
         rng = get_rng(cfg)
 
         # Setup time and crater list
-        time_arr = get_time_array(cfg)
-        df = get_crater_basin_list(cfg, rng)
+        n = int((cfg.timestart - cfg.timeend) / cfg.timestep)
+        self.time_arr = np.linspace(cfg.timestart, cfg.timestep, n, dtype=cfg.dtype)
+
+        # Setup crater list
+        df_craters = read_crater_list(cfg)
+        df_craters["isbasin"] = False
+        df_craters["icy_impactor"] = "no"
+
+        df_basins = read_basin_list(cfg)
+        df_basins["isbasin"] = True
+        df_basins = random_icy_basins(df_basins, cfg, rng)
+
+        # Combine DataFrames and randomize ages
+        df = pd.concat([df_craters, df_basins])
+        self.df = randomize_crater_ages(df, cfg.timestep, rng)
+
         if not cfg.ejecta_basins:
-            df[~df.isbasin].reset_index(drop=True)
+            self.df[~self.df.isbasin].reset_index(drop=True)
 
         # Init strat columns dict based for all cfg.coldtrap_names
-        ej_dists = get_coldtrap_dists(df, cfg)  # Crater -> coldtrap distances (2D)
-        strat_cols = init_strat_columns(time_arr, df, ej_dists, cfg, rng)
+        self.ej_dists = get_coldtrap_dists(df, cfg)  # Crater -> coldtrap distances (2D)
+        
+        ej_cols, ej_srcs = get_ejecta_thickness_time(self.time_arr, self.df, self.ej_dists, self.cfg)
+        
+        # Get column vectors of polar and volc ice
+        impact_ice = get_impact_ice(self.time_arr, self.df, cfg, rng)
+        comet_ice = get_impact_ice_comet(self.time_arr, self.df, cfg, rng)
+        if cfg.impact_ice_comets:
+            # comet_ice is run every time for repro, but only add if needed
+            impact_ice += comet_ice
+        solar_wind_ice = get_solar_wind_ice(self.time_arr, cfg)
+        ice_polar = (impact_ice + solar_wind_ice)[:, None]
+        ice_volcanic = get_volcanic_ice(self.time_arr, cfg)[:, None]
 
+        if cfg.use_volc_dep_effcy:
+            # Rescale by volc dep effcy, apply evenly to all coldtraps
+            ice_volcanic *= cfg.volc_dep_effcy / cfg.ballistic_hop_effcy
+        else:
+            # Treat as ballistically hopping polar ice
+            ice_polar += ice_volcanic
+            ice_volcanic *= 0
+
+        # Rescale by ballistic hop efficiency per coldtrap
+        if cfg.ballistic_hop_moores:
+            bhops = get_ballistic_hop_coldtraps(list(cfg.coldtrap_names), cfg)
+            bhops /= cfg.ballistic_hop_effcy
+            ice_polar = bhops * ice_polar  # row * col -> 2D arr
+        else:
+            ice_polar = np.tile(ice_polar, len(cfg.coldtrap_names))
+        ice_cols = ice_polar + ice_volcanic
+
+        # Get cold trap crater names (corresponds to columns in ej_cols, ice_cols)
+        self.ctraps = cfg.coldtrap_names
+
+        # Build strat columns as {cname: ice_col, ej_col, ej_src}
+        self.strat_cols = {
+            coldtrap: [ice_cols[:, i], ej_cols[:, i], ej_srcs[:, i]]
+            for i, coldtrap in enumerate(self.ctraps)
+        }
+        
         # Get gardening and bsed time arrays
-        bsed_depth, bsed_frac = get_bsed_depth(time_arr, df, ej_dists, cfg)
-        overturn = overturn_depth_time(time_arr, cfg)
+        self.bsed_depth, self.bsed_frac = get_bsed_depth(self.time_arr, self.df, self.ej_dists, cfg)
+        self.overturn = overturn_depth_time(self.time_arr, cfg)
 
         
     # update for one time step at a time
-    def update(self):
-        pass
+    def update(self, ice_col, ej_col, t, overturn_d):
+        
+        # Ballistic sed gardens column before any ice gain (timestep t-1)
+        ice_col = garden_ice_column(ice_col, ej_col, t - 1, self.bsed_d, self.bsed_frac)
+
+        # Ice "gained" by column (already pre-computed in ice_col[t])
+
+        # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
+        ice_col = remove_ice_overturn(ice_col, ej_col, t, overturn_d, self.cfg)
+
+        return ice_col
 
     # run through all time steps
     def run(self):
-        pass
+        vprint(self.cfg, "Starting main loop...")
+        
+        # Loop through all timesteps
+        for t, overturn_t in enumerate(self.overturn):
+            # Update all coldtrap ice_cols
+            for i, coldtrap in enumerate(self.cfg.coldtrap_names):
+                ice_col, ej_col, _ = self.strat_cols[coldtrap]
+                ice_col = self.update(
+                    ice_col, 
+                    ej_col,
+                    t,
+                    overturn_t
+                )
+                self.strat_cols[coldtrap][0] = ice_col  # Redundant (updated in place)
 
     # save the output
     def save_output(self):
-        pass
+        return format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
 
     # plot the output
     def show(self):
