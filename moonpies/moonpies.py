@@ -66,7 +66,7 @@ class MoonPIES():
             self.df[~self.df.isbasin].reset_index(drop=True)
 
         # Init strat columns dict based for all cfg.coldtrap_names
-        self.ej_dists = get_coldtrap_dists(df, cfg)  # Crater -> coldtrap distances (2D)
+        self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
         
         ej_cols, ej_srcs = get_ejecta_thickness_time(self.time_arr, self.df, self.ej_dists, self.cfg)
         
