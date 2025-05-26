@@ -5,7 +5,6 @@ Utility functions for moonpies sim
 import gc
 import numpy as np
 from functools import _lru_cache_wrapper
-from moonpies.utils.rv import _rng
 
 
 def get_ice_thickness(global_ice_mass, cfg):
@@ -290,7 +289,7 @@ def probabilistic_round(x, rng=None):
     -------
     x_rounded (int): Either floor(x) or ceil(x), rounded probabalistically
     """
-    rng = _rng(rng)
+    rng = np.random.default_rng(rng)
     x = np.atleast_1d(x)
     random_offset = rng.random(x.shape)
     x_rounded = np.floor(x + random_offset).astype(int)

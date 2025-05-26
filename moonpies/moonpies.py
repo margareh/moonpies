@@ -23,9 +23,9 @@ from moonpies import config
 from moonpies.utils.utils import vprint, clear_cache, get_coldtrap_dists
 from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
 from moonpies.utils.load_data import read_crater_list, read_basin_list
-from moonpies.utils.save_output import get_ejecta_thickness_time, format_save_outputs
+from moonpies.utils.save_output import format_save_outputs
 
-from moonpies.processes.ballistic import get_bsed_depth
+from moonpies.processes.ballistic import get_bsed_depth, get_ejecta_thickness_time
 from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
 from moonpies.processes.volcanic import get_volcanic_ice
 from moonpies.processes.solar_wind import get_solar_wind_ice
