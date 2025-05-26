@@ -155,7 +155,7 @@ class MoonPIES():
 # main entrypoint function
 def main(cfg):
     mp = MoonPIES(cfg)
-    #mp.run()
+    mp.run()
     return mp.save_output()
 
 

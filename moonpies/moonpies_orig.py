@@ -68,10 +68,10 @@ def main(cfg=CFG):
     overturn = overturn_depth_time(time_arr, cfg)
 
     # Main loop over time
-    #vprint(cfg, "Starting main loop...")
-    #strat_cols = update_strat_cols(
-    #    strat_cols, overturn, bsed_depth, bsed_frac, cfg
-    #)
+    vprint(cfg, "Starting main loop...")
+    strat_cols = update_strat_cols(
+        strat_cols, overturn, bsed_depth, bsed_frac, cfg
+    )
 
     # Format and save outputs
     return format_save_outputs(strat_cols, time_arr, df, cfg)
