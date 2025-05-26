@@ -150,8 +150,12 @@ class MoonPIES():
         pass
 
 
-if __name__ == "__main__":
-
+# main entrypoint function
+def main():
     mp = MoonPIES()
     mp.run()
+    return mp.save_output()
 
+
+if __name__ == "__main__":
+    main()
