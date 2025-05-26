@@ -4,11 +4,24 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
 from moonpies import config
-from moonpies import moonpies as mp
+from moonpies.utils.load_data import read_crater_list, read_basin_list
+from moonpies.utils.rv import random_icy_basins, randomize_crater_ages
+from moonpies.utils.save_output import merge_adjacent_strata
 
 CFG = config.Cfg(seed=1)
-CDF = mp.get_crater_basin_list(CFG)  # Only used for radii for lith_key
+
+# only used for radii for lith_key
+df_craters = read_crater_list(CFG)
+df_craters["isbasin"] = False
+df_craters["icy_impactor"] = "no"
+df_basins = read_basin_list(CFG)
+df_basins["isbasin"] = True
+df_basins = random_icy_basins(df_basins, CFG)
+CDF = pd.concat([df_craters, df_basins])
+CDF = randomize_crater_ages(CDF, CFG.timestep)
+
 
 # Stratigraphy column hatches with increasing density
 HATCH = ('/', '\\', '|', '-', '+', 'x', 'o')
@@ -260,7 +273,7 @@ def clean_up_strat_col(strat, min_thick=0):
 
     # Set all "thin" layers to Other and merge them if adjacent
     strat.loc[thickness < min_thick, 'label'] = 'Other' 
-    strat = mp.merge_adjacent_strata(strat, agg)
+    strat = merge_adjacent_strata(strat, agg)
 
     # Find all remaining Other layers and merge them into next lower layer
     others = strat[strat.label == 'Other']
@@ -270,7 +283,7 @@ def clean_up_strat_col(strat, min_thick=0):
         newlabel.append(strat.loc[1, 'label'])  # handle bottom later
     newlabel = newlabel.extend([strat.label.loc[i-1] for i in others.index])
     strat.loc[strat.label == 'Other', 'label'] = newlabel
-    strat = mp.merge_adjacent_strata(strat, agg)
+    strat = merge_adjacent_strata(strat, agg)
 
     # Compute ice %
     strat["icepct"] = 100 * strat.ice / (strat.ice + strat.ejecta)

@@ -112,10 +112,10 @@ class MoonPIES():
 
         
     # update for one time step at a time
-    def update(self, ice_col, ej_col, t, overturn_d):
+    def update(self, ice_col, ej_col, t, overturn_d, bsed_d, bsed_f):
         
         # Ballistic sed gardens column before any ice gain (timestep t-1)
-        ice_col = garden_ice_column(ice_col, ej_col, t - 1, self.bsed_d, self.bsed_frac)
+        ice_col = garden_ice_column(ice_col, ej_col, t - 1, bsed_d, bsed_f)
 
         # Ice "gained" by column (already pre-computed in ice_col[t])
 
@@ -137,7 +137,9 @@ class MoonPIES():
                     ice_col, 
                     ej_col,
                     t,
-                    overturn_t
+                    overturn_t,
+                    self.bsed_depth[t,i],
+                    self.bsed_frac[t,i]
                 )
                 self.strat_cols[coldtrap][0] = ice_col  # Redundant (updated in place)
 
@@ -151,11 +153,12 @@ class MoonPIES():
 
 
 # main entrypoint function
-def main():
-    mp = MoonPIES()
+def main(cfg):
+    mp = MoonPIES(cfg)
     mp.run()
     return mp.save_output()
 
 
 if __name__ == "__main__":
-    main()
+    cfg = config.Cfg()
+    main(cfg)

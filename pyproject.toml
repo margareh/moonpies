@@ -43,6 +43,7 @@ seaborn = "^0.11.2"
 
 [tool.poetry.scripts]
 moonpies = "moonpies.cli:run"
+plot_moonpies = "moonpies.cli:plot"
 
 [tool.black]
 line-length=79

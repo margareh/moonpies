@@ -17,9 +17,11 @@ Examples:
     moonpies 12345
     moonpies --cfg my_config.py 54321
 """
+import os
 import argparse
 from pathlib import Path
 from moonpies import __version__, config
+from moonpies.utils.plotting import plot_stratigraphy
 
 def run():
     """Command-line interface for running MoonPIES."""
@@ -55,6 +57,16 @@ def run():
     # Run model with chosen config options
     from moonpies import moonpies as mp
     _ = mp.main(cfg)
+
+
+def plot():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--path', type=str, help='Path to output folder with results to be plotted')
+    args = parser.parse_args()
+
+    plot_stratigraphy(args.path, fsave=os.path.join(args.path, 'strata.pdf'))
+
 
 if __name__ == '__main__':
     run()

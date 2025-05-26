@@ -285,7 +285,7 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
         arr = np.sort(np.unique(np.concatenate([target, uniq])))
         return arr
 
-    mdf = read_ballistic_melt_frac(True, cfg)
+    mdf = read_ballistic_melt_frac(cfg, True)
     temps = insert_unique_in_range(ejecta_temps, mdf.columns.to_numpy())
     mrs = insert_unique_in_range(mixing_ratios, mdf.index.to_numpy())
     mdf = mdf.reindex(index=mrs, columns=temps)
@@ -416,7 +416,7 @@ def get_bsed_depth(time_arr, df, ej_dists, cfg):
 
     # Get distance, mixing_ratio, volume_frac for each crater to each coldtrap
     mixing_ratio = get_mixing_ratio_oberbeck(ej_dists, cfg)
-    ej_temp = ejecta_temp(df, mixing_ratio.shape, cfg)
+    ej_temp = ejecta_temp(df, cfg, mixing_ratio.shape)
     melt_frac = get_melt_frac(ej_temp, mixing_ratio, cfg)
 
     # Convert to time array shape: (Ncrater, Ncoldtrap) -> (Ntime, Ncoldtrap)
