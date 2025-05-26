@@ -59,6 +59,42 @@ def run():
     _ = mp.main(cfg)
 
 
+def run_orig():
+    """Command-line interface for running (original) MoonPIES."""
+    # Get optional random seed and cfg file from cmd-line args
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "seed",
+        type=int,
+        nargs="?",
+        help="random seed for this run (overwrites seed in config file)",
+    )
+    parser.add_argument(
+        "--version", "-v", action='version',
+         version='%(prog)s {version}'.format(version=__version__)
+    )
+    parser.add_argument(
+        "--cfg", "-c", nargs="?", type=str, help="path to custom config.py"
+    )
+    parser.add_argument(
+        "--resume", default=False, action='store_true', 
+        help="skip if out_path dir already exists"
+    )
+    args = parser.parse_args()
+    print(args)
+
+    # Get Cfg from file (if provided), overwrite seed (if provided), else default
+    cfg = config.read_custom_cfg(args.cfg, args.seed)
+
+    if args.resume and Path(cfg.out_path).exists():
+        print(f"Skipping run with seed {cfg.seed}: {cfg.out_path} exists.")
+        quit()
+
+    # Run model with chosen config options
+    from moonpies import moonpies_orig as mp
+    _ = mp.main(cfg)
+
+
 def plot():
 
     parser = argparse.ArgumentParser()
