@@ -58,7 +58,7 @@ def main(cfg=CFG):
     df = get_crater_basin_list(cfg, rng)
     if not cfg.ejecta_basins:
         df[~df.isbasin].reset_index(drop=True)
-    print(df)
+    
     # Init strat columns dict based for all cfg.coldtrap_names
     ej_dists = get_coldtrap_dists(df, cfg)  # Crater -> coldtrap distances (2D)
     strat_cols = init_strat_columns(time_arr, df, ej_dists, cfg, rng)
@@ -68,10 +68,10 @@ def main(cfg=CFG):
     overturn = overturn_depth_time(time_arr, cfg)
 
     # Main loop over time
-    vprint(cfg, "Starting main loop...")
-    strat_cols = update_strat_cols(
-        strat_cols, overturn, bsed_depth, bsed_frac, cfg
-    )
+    #vprint(cfg, "Starting main loop...")
+    #strat_cols = update_strat_cols(
+    #    strat_cols, overturn, bsed_depth, bsed_frac, cfg
+    #)
 
     # Format and save outputs
     return format_save_outputs(strat_cols, time_arr, df, cfg)
@@ -1965,7 +1965,7 @@ def randomize_crater_ages(df, timestep, rng=None):
     # Truncated normal, returns vector of randomized ages
     new_ages = stats.truncnorm.rvs(a, b, df.age, sig, random_state=rng)
     df["age"] = round_to_ts(new_ages, timestep)
-    df = df.sort_values("age", ascending=False).reset_index(drop=True)
+    df = df.sort_values(["age","cname"], ascending=[False,True]).reset_index(drop=True)
     return df
 
 
@@ -2667,7 +2667,9 @@ def get_all_labels(label_array):
     for label_col in label_array:
         all_labels_str = ",".join(label_col)
         unique_labels = set(all_labels_str.split(","))
-        all_labels.append(",".join(unique_labels).strip(","))
+        unique_labels_l = list(unique_labels)
+        unique_labels_l.sort()
+        all_labels.append(",".join(unique_labels_l).strip(","))
     return all_labels
 
 

@@ -88,7 +88,7 @@ def randomize_crater_ages(df, timestep, rng=None):
     # Truncated normal, returns vector of randomized ages
     new_ages = stats.truncnorm.rvs(a, b, df.age, sig, random_state=rng)
     df["age"] = round_to_ts(new_ages, timestep)
-    df = df.sort_values("age", ascending=False).reset_index(drop=True)
+    df = df.sort_values(["age", "cname"], ascending=[False, True]).reset_index(drop=True)
     return df
 
 

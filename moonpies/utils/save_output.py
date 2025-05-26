@@ -248,7 +248,9 @@ def get_all_labels(label_array):
     for label_col in label_array:
         all_labels_str = ",".join(label_col)
         unique_labels = set(all_labels_str.split(","))
-        all_labels.append(",".join(unique_labels).strip(","))
+        unique_labels_l = list(unique_labels)
+        unique_labels_l.sort()
+        all_labels.append(",".join(unique_labels_l).strip(","))
     return all_labels
 
 

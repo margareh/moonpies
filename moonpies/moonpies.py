@@ -64,7 +64,7 @@ class MoonPIES():
 
         if not cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
-        print(self.df)
+        
         # Init strat columns dict based for all cfg.coldtrap_names
         self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
         
@@ -155,7 +155,7 @@ class MoonPIES():
 # main entrypoint function
 def main(cfg):
     mp = MoonPIES(cfg)
-    mp.run()
+    #mp.run()
     return mp.save_output()
 
 
