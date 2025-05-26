@@ -58,7 +58,7 @@ def main(cfg=CFG):
     df = get_crater_basin_list(cfg, rng)
     if not cfg.ejecta_basins:
         df[~df.isbasin].reset_index(drop=True)
-
+    print(df)
     # Init strat columns dict based for all cfg.coldtrap_names
     ej_dists = get_coldtrap_dists(df, cfg)  # Crater -> coldtrap distances (2D)
     strat_cols = init_strat_columns(time_arr, df, ej_dists, cfg, rng)
