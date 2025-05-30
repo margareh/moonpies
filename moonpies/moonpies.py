@@ -39,7 +39,6 @@ class MoonPIES():
     def __init__(self, cfg=config.Cfg()):
         self.cfg = cfg
 
-        # TODO: update code below and store important parts as class members
         # Setup phase
         vprint(cfg, "Initializing run...")
         clear_cache()
@@ -80,6 +79,11 @@ class MoonPIES():
         ice_polar = (impact_ice + solar_wind_ice)[:, None]
         ice_volcanic = get_volcanic_ice(self.time_arr, cfg)[:, None]
 
+        # one per time array
+        # print(impact_ice.shape) # 425
+        # print(solar_wind_ice.shape) # 425
+        # print(ice_volcanic.shape) # 425 x 1
+
         if cfg.use_volc_dep_effcy:
             # Rescale by volc dep effcy, apply evenly to all coldtraps
             ice_volcanic *= cfg.volc_dep_effcy / cfg.ballistic_hop_effcy
@@ -97,6 +101,7 @@ class MoonPIES():
             ice_polar = np.tile(ice_polar, len(cfg.coldtrap_names))
         ice_cols = ice_polar + ice_volcanic
 
+
         # Get cold trap crater names (corresponds to columns in ej_cols, ice_cols)
         self.ctraps = cfg.coldtrap_names
 
@@ -107,22 +112,31 @@ class MoonPIES():
         }
         
         # Get gardening and bsed time arrays
-        self.bsed_depth, self.bsed_frac = get_bsed_depth(self.time_arr, self.df, self.ej_dists, cfg)
-        self.overturn = overturn_depth_time(self.time_arr, cfg)
+        self.bsed_depth, self.bsed_frac = get_bsed_depth(self.time_arr, self.df, self.ej_dists, cfg) # ballistic sedimentation depth, fraction by time
+        self.overturn = overturn_depth_time(self.time_arr, cfg) # overturn depth by time
+        # print(self.bsed_depth.shape) # 425 x 12 (time x coldtrap)
+        # print(self.bsed_frac.shape) # 425 x 12
+        # print(self.overturn.shape) # 425 (time)
 
         
     # update for one time step at a time
-    def update(self, ice_col, ej_col, t, overturn_d, bsed_d, bsed_f):
+    def update(self, t, overturn_d):
         
-        # Ballistic sed gardens column before any ice gain (timestep t-1)
-        ice_col = garden_ice_column(ice_col, ej_col, t - 1, bsed_d, bsed_f)
+        # Update all coldtrap ice_cols
+        for i, coldtrap in enumerate(self.cfg.coldtrap_names):
 
-        # Ice "gained" by column (already pre-computed in ice_col[t])
+            ice_col, ej_col, _ = self.strat_cols[coldtrap]
 
-        # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
-        ice_col = remove_ice_overturn(ice_col, ej_col, t, overturn_d, self.cfg)
+            # Ballistic sed gardens column before any ice gain (timestep t-1)
+            ice_col = garden_ice_column(ice_col, ej_col, t - 1, self.bsed_depth[t,i], self.bsed_frac[t,i])
 
-        return ice_col
+            # Ice "gained" by column (already pre-computed in ice_col[t])
+
+            # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
+            ice_col = remove_ice_overturn(ice_col, ej_col, t, overturn_d, self.cfg)
+
+            self.strat_cols[coldtrap][0] = ice_col  # Redundant (updated in place)
+
 
     # run through all time steps
     def run(self):
@@ -130,18 +144,7 @@ class MoonPIES():
         
         # Loop through all timesteps
         for t, overturn_t in enumerate(self.overturn):
-            # Update all coldtrap ice_cols
-            for i, coldtrap in enumerate(self.cfg.coldtrap_names):
-                ice_col, ej_col, _ = self.strat_cols[coldtrap]
-                ice_col = self.update(
-                    ice_col, 
-                    ej_col,
-                    t,
-                    overturn_t,
-                    self.bsed_depth[t,i],
-                    self.bsed_frac[t,i]
-                )
-                self.strat_cols[coldtrap][0] = ice_col  # Redundant (updated in place)
+            self.update(t, overturn_t)
 
     # save the output
     def save_output(self):
