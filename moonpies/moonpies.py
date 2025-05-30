@@ -20,12 +20,12 @@ import pandas as pd
 
 from moonpies import config
 
-from moonpies.utils.utils import vprint, clear_cache, get_coldtrap_dists
+from moonpies.utils.utils import vprint, clear_cache, get_coldtrap_dists, get_grid_arrays
 from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
-from moonpies.utils.load_data import read_crater_list, read_basin_list
-from moonpies.utils.save_output import format_save_outputs
+from moonpies.utils.load_data import read_crater_list, read_basin_list, load_tifs
+from moonpies.utils.save_output import format_save_outputs, get_gc_dist_grid
 
-from moonpies.processes.ballistic import get_bsed_depth, get_ejecta_thickness_time
+from moonpies.processes.ballistic import get_bsed_depth, get_ejecta_thickness_time, get_ejecta_thickness
 from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
 from moonpies.processes.volcanic import get_volcanic_ice
 from moonpies.processes.solar_wind import get_solar_wind_ice
@@ -44,9 +44,14 @@ class MoonPIES():
         clear_cache()
         rng = get_rng(cfg)
 
-        # Setup time and crater list
+        # Setup time array
         n = int((cfg.timestart - cfg.timeend) / cfg.timestep)
         self.time_arr = np.linspace(cfg.timestart, cfg.timestep, n, dtype=cfg.dtype)
+
+        # Setup ice distribution grid structure
+        depthsize = int(cfg.depthmax / cfg.depthres)
+        self.grdy, self.grdx = get_grid_arrays(cfg)
+        self.ice_col_grid = np.zeros((cfg.grdysize, cfg.grdxsize, depthsize))
 
         # Setup crater list
         df_craters = read_crater_list(cfg)
@@ -57,13 +62,26 @@ class MoonPIES():
         df_basins["isbasin"] = True
         df_basins = random_icy_basins(df_basins, cfg, rng)
 
+        # Load the PSR and slope data
+        # TODO: make sure these have the same size and resolution as our grid
+        self.psr, self.slope = load_tifs(cfg)
+
         # Combine DataFrames and randomize ages
         df = pd.concat([df_craters, df_basins])
         self.df = randomize_crater_ages(df, cfg.timestep, rng)
 
         if not cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
-        
+
+        # Pre-compute distances to each crater
+        self.crater_dist_grid = get_gc_dist_grid(self.df, grdx, grdy, self.cfg, mask=False)
+        dists_mask = get_gc_dist_grid(self.df, grdx, grdy, self.cfg)
+
+        # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
+        rad = self.df.rad.values[:, np.newaxis, np.newaxis]
+        self.ej_thick_grid = get_ejecta_thickness(dists_mask, rad, self.cfg)
+
+        # TODO: review from here down to see how we can change the code to account for spatial distribution
         # Init strat columns dict based for all cfg.coldtrap_names
         self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
         

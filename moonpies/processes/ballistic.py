@@ -32,6 +32,7 @@ def get_ejecta_thickness(distance, radius, cfg):
     --------
     get_ej_thick_simple, get_ej_thick_complex, get_ej_thick_basin
     """
+
     dist_v = np.atleast_1d(distance)
     rad_v = np.broadcast_to(radius, dist_v.shape)
     thick = np.zeros_like(dist_v * rad_v)

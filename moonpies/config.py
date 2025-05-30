@@ -103,6 +103,7 @@ class Cfg:
     data_path: str = ''  # path to import data
     out_path: str = ''  # path to save outputs
     figs_path: str = ''  # path to save figures
+    spatial_data_path: str = '/media/ssd/ThesisWork/Volatiles/SouthPoleData' # path to spatial datasets
     
     # Files to import from data_path (attr name must end with "_in")
     crater_csv_in: str = 'crater_list.csv'
@@ -113,6 +114,8 @@ class Cfg:
     bsed_frac_mean_in: str = 'ballistic_sed_frac_melted_mean.csv'
     bsed_frac_std_in: str = 'ballistic_sed_frac_melted_std.csv'
     mplstyle_in: str = '.moonpies.mplstyle'
+    slope_in: str = 'LDSM_80S_20MPP_ADJ.TIF'
+    psr_in: str = 'LPSR_80S_20MPP_ADJ.TIF'
 
     # Files to export to out_path (attr name must end with "_out")
     ej_t_csv_out: str = 'ej_columns.csv'
@@ -131,6 +134,8 @@ class Cfg:
     timestart: int = 4.25e9  # [yr]
     timeend: int = 0  # [yr]
     timestep: int = 10e6  # [yr]
+    depthres: float = 6 # [m / cell]
+    depthmax: int = 420 # [m]
 
     # Lunar constants
     rad_moon: float = 1737.4e3  # [m], lunar radius

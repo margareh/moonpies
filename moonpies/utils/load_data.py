@@ -2,9 +2,31 @@
 Data loader functions for moonpies
 """
 
+import os
 import numpy as np
 import pandas as pd
+import rasterio as rs
 from functools import lru_cache
+
+
+def load_tifs(cfg, downsample=50):
+    """Return numpy arrays with spatial datasets from cfg.psr_in and cfg.slope_in
+
+    These tif files have a nominal resolution of 20 m per pixel
+    """
+    psr_data = rs.open(os.path.join(cfg.spatial_data_path, cfg.psr_in))
+    psr = psr_data.read(1)
+
+    slope_data = rs.open(os.path.join(cfg.spatial_data_path, cfg.slope_in))
+    slope = slope_data.read(1)
+
+    # if downsample > 1, then downsample the data
+    if downsample > 1:
+        new_n = int(psr.shape[0] / downsample)
+        psr = psr.reshape((new_n, downsample, new_n, downsample)).sum(axis=1).sum(axis=2)
+        slope = slope.reshape((new_n, downsample, new_n, downsample)).sum(axis=1).sum(axis=2)
+
+    return psr, slope
 
 
 def read_crater_list(cfg):
