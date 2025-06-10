@@ -114,8 +114,8 @@ class Cfg:
     bsed_frac_mean_in: str = 'ballistic_sed_frac_melted_mean.csv'
     bsed_frac_std_in: str = 'ballistic_sed_frac_melted_std.csv'
     mplstyle_in: str = '.moonpies.mplstyle'
-    slope_in: str = 'LDSM_80S_20MPP_ADJ.TIF'
-    psr_in: str = 'LPSR_80S_20MPP_ADJ.TIF'
+    slope_spat: str = 'LDSM_80S_20MPP_ADJ.TIF'
+    psr_spat: str = 'LPSR_80S_20MPP_ADJ.TIF'
 
     # Files to export to out_path (attr name must end with "_out")
     ej_t_csv_out: str = 'ej_columns.csv'
@@ -128,14 +128,15 @@ class Cfg:
     # Grid and time size and resolution
     dtype = np.float32  # np.float64 (32 should be good for most purposes)
     rtol = 1e-6  # Rounding tolerance for floating point comparisons (mainly for rounding error with float time_arr)
-    grdxsize: int = 400e3  # [m]
-    grdysize: int = 400e3  # [m]
+    grdxsize: int = 304e3  # [m] originally 400e3
+    grdysize: int = 304e3  # [m] originally 400e3
     grdstep: int = 1e3  # [m / pixel]
     timestart: int = 4.25e9  # [yr]
     timeend: int = 0  # [yr]
     timestep: int = 10e6  # [yr]
     depthres: float = 6 # [m / cell]
     depthmax: int = 420 # [m]
+    tif_mpp: int = 20 # [m / pixel]
 
     # Lunar constants
     rad_moon: float = 1737.4e3  # [m], lunar radius
@@ -302,9 +303,10 @@ class Cfg:
         _sudo_setattr(self, 'data_path', _get_data_path(self.data_path))
         _sudo_setattr(self, 'out_path', _get_out_path(self.out_path, self.seed, self.run_date, self.run_name))
         _sudo_setattr(self, 'figs_path', _get_figs_path(self.figs_path, self.out_path))
+        _sudo_setattr(self, 'spatial_data_path', _get_spatial_data_path(self.spatial_data_path))
     
     
-    def _make_paths_absolute(self, data_path, out_path):
+    def _make_paths_absolute(self, data_path, out_path, spatial_data_path):
         """
         Make all file paths absolute. 
         
@@ -320,6 +322,8 @@ class Cfg:
             newpath = None
             if key.endswith('_in'):
                 newpath = path.join(data_path, path.basename(value))
+            if key.endswith('_spat'):
+                newpath = path.join(spatial_data_path, path.basename(value))
             elif key.endswith('_out'):
                 newpath = path.join(out_path, path.basename(value))
             elif key.endswith('_path'):
@@ -352,7 +356,7 @@ class Cfg:
         self._set_mode_defaults(self.mode)
         self._set_pole_defaults(self.pole)
         self._set_path_defaults()
-        self._make_paths_absolute(self.data_path, self.out_path)
+        self._make_paths_absolute(self.data_path, self.out_path, self.spatial_data_path)
         self._enforce_dataclass_types()
 
     # Public methods
@@ -399,6 +403,12 @@ def _get_data_path(data_path):
             data_path = fpath.parent.as_posix()
     return data_path + sep
 
+def _get_spatial_data_path(spatial_data_path):
+    if spatial_data_path != '':
+        return spatial_data_path
+    with importlib.resources.path('moonpies.data', '__init__.py') as fpath:
+        spatial_data_path = fpath.parent.as_posix()
+    return spatial_data_path + sep
 
 def _get_figs_path(figs_path, out_path):
     """Return default figs_path if not specified in cfg."""

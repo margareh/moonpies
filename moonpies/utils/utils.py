@@ -193,8 +193,8 @@ def get_grid_arrays(cfg):
     ysize, ystep = cfg.grdysize, cfg.grdstep
     xsize, xstep = cfg.grdxsize, cfg.grdstep
     grdy, grdx = np.meshgrid(
-        np.arange(ysize, -ysize-ystep, -ystep, dtype=cfg.dtype),
-        np.arange(-xsize, xsize+xstep, xstep, dtype=cfg.dtype),
+        np.arange(ysize, -ysize, -ystep, dtype=cfg.dtype),
+        np.arange(-xsize, xsize, xstep, dtype=cfg.dtype),
         sparse=True,
         indexing="ij",
     )

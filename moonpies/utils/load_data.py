@@ -9,22 +9,40 @@ import rasterio as rs
 from functools import lru_cache
 
 
-def load_tifs(cfg, downsample=50):
-    """Return numpy arrays with spatial datasets from cfg.psr_in and cfg.slope_in
+def load_tifs(cfg, cache=False):
+    """Return numpy arrays with spatial datasets from cfg.psr_spat and cfg.slope_spat
 
     These tif files have a nominal resolution of 20 m per pixel
     """
-    psr_data = rs.open(os.path.join(cfg.spatial_data_path, cfg.psr_in))
-    psr = psr_data.read(1)
 
-    slope_data = rs.open(os.path.join(cfg.spatial_data_path, cfg.slope_in))
-    slope = slope_data.read(1)
+    # check if we have datasets cached
+    if cache and os.path.exists(os.path.join(cfg.data_path, 'tif_cache.npz')):
+        data = np.load(os.path.join(cfg.data_path, 'tif_cache.npz'))
+        psr = data['psr']
+        slope = data['slope']
 
-    # if downsample > 1, then downsample the data
-    if downsample > 1:
-        new_n = int(psr.shape[0] / downsample)
-        psr = psr.reshape((new_n, downsample, new_n, downsample)).sum(axis=1).sum(axis=2)
-        slope = slope.reshape((new_n, downsample, new_n, downsample)).sum(axis=1).sum(axis=2)
+    else:
+
+        # print(cfg.psr_spat)
+        psr_data = rs.open(cfg.psr_spat)
+        psr = psr_data.read(1)
+
+        # print(cfg.slope_spat)
+        slope_data = rs.open(cfg.slope_spat)
+        slope = slope_data.read(1)
+        
+        # compute downsample ratio
+        downsample = int(cfg.grdstep / cfg.tif_mpp)
+
+        # if downsample > 1, then downsample the data
+        if downsample > 1:
+            psr_new_n = int(psr.shape[0] / downsample)
+            slope_new_n = int(slope.shape[0] / downsample)
+            psr = psr.reshape((psr_new_n, downsample, psr_new_n, downsample)).sum(axis=1).sum(axis=2)
+            slope = slope.reshape((slope_new_n, downsample, slope_new_n, downsample)).sum(axis=1).sum(axis=2)
+
+        # save datasets
+        np.savez(os.path.join(cfg.data_path, 'tif_cache.npz'), psr=psr, slope=slope)
 
     return psr, slope
 
