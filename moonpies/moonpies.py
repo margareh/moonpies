@@ -15,6 +15,8 @@ Edited by Margaret Hansen, 5-15-2025
 
 """
 
+import os
+import copy
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -43,11 +45,12 @@ class MoonPIES():
         # Setup phase
         vprint(cfg, "Initializing run...")
         clear_cache()
-        rng = get_rng(cfg)
+        self.rng = get_rng(cfg)
 
         # Setup time array
         n = int((cfg.timestart - cfg.timeend) / cfg.timestep)
         self.time_arr = np.linspace(cfg.timestart, cfg.timestep, n, dtype=cfg.dtype)
+        # print(self.time_arr.shape) # 425
 
         # Setup ice distribution grid structure
         depthsize = int(cfg.depthmax / cfg.depthres)
@@ -66,13 +69,13 @@ class MoonPIES():
 
         df_basins = read_basin_list(cfg)
         df_basins["isbasin"] = True
-        df_basins = random_icy_basins(df_basins, cfg, rng)
+        df_basins = random_icy_basins(df_basins, cfg, self.rng)
         n_basin = len(df_basins)
         # print(n_basin) # 27
 
         # Combine DataFrames and randomize ages
         df = pd.concat([df_craters, df_basins])
-        self.df = randomize_crater_ages(df, cfg.timestep, rng)
+        self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
 
         if not cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
@@ -83,38 +86,30 @@ class MoonPIES():
         # print(self.psr.shape) # 608 x 608
         # print(self.slope.shape)
 
-        # display the psr and slope data (to see what it looks like)
-        # fig, ax = plt.subplots(1,2)
-        # ax[0].imshow(self.psr, cmap='binary')
-        # ax[1].imshow(self.slope, cmap='coolwarm')
-        # ax[0].axis('off')
-        # ax[1].axis('off')
-        # ax[0].set_title('PSRs')
-        # ax[1].set_title('Slope')
-        # plt.savefig('tif_files.png', bbox_inches='tight', dpi=100)
-        # plt.close()
-
         # Pre-compute distances to each crater and masks for craters
         self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
-        crater_mask = np.zeros_like(self.crater_dist_grid)
-        # print(crater_mask.shape) # 51 x 608 x 608
+        self.crater_mask = np.zeros_like(self.crater_dist_grid)
+        # print(self.crater_mask.shape) # 51 x 608 x 608
 
         cr_id = 0
         for i, row in self.df.iterrows():
-            crater_mask[cr_id] = (self.crater_dist_grid[cr_id] <= row['rad'])
+            self.crater_mask[cr_id] = (self.crater_dist_grid[cr_id] <= row['rad'])
             cr_id += 1
 
-        crater_mask_all = np.any(crater_mask[self.df['isbasin']==False], axis=0)
-        basin_mask_all = np.any(crater_mask[self.df['isbasin']], axis=0)
-        # print(crater_mask_all.shape) # 608 x 608
+        # Pre-compute distances to each coldtrap and masks for each coldtrap
+        self.coldtrap_flag = np.zeros((len(self.df)))
+        cr_id = 0
+        for i, row in self.df.iterrows():
+            if np.isin(row.cname, self.cfg.coldtrap_names):
+                self.coldtrap_flag[cr_id] = 1
+            cr_id += 1
+        # print(self.coldtrap_flag.sum()) # 12
+        n_ct = len(self.cfg.coldtrap_names)
 
-        # fig, ax = plt.subplots()
-        # ax.imshow(self.psr, cmap='binary')
-        # ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5)
-        # ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5)
-        # ax.axis('off')
-        # plt.savefig('craters_and_psrs.png', bbox_inches='tight', dpi=100)
-        # plt.close()
+        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
+        # print(self.df.iloc[self.coldtrap_inds])
+        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr, axis=0)
+        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
@@ -122,45 +117,20 @@ class MoonPIES():
         self.ej_thick_grid = get_ejecta_thickness(dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
 
-        # TODO: review from here down to see how we can change the code to account for spatial distribution
-        # Init strat columns dict based for all cfg.coldtrap_names
-        self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
-        print(self.ej_dists.shape)
+        # Compute initial amount of ice
+        t_init = np.array([copy.copy(self.cfg.timestart)]).astype(self.cfg.dtype)
+        self.deliver_ice(t_init) # results stored in self.ice_col
+
+        # save in the ice grid!
+
+        # # TODO: review from here down to see how we can change the code to account for spatial distribution
+        # # Init strat columns dict based for all cfg.coldtrap_names
+        # self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
+        # print(self.ej_dists.shape) # 51 x 12 (51 craters --> 12 coldtraps)
         
         # ej_cols, ej_srcs = get_ejecta_thickness_time(self.time_arr, self.df, self.ej_dists, self.cfg)
+        # print(ej_cols.shape) # 425 x 12
         
-        # # Get column vectors of polar and volc ice
-        # impact_ice = get_impact_ice(self.time_arr, self.df, cfg, rng)
-        # comet_ice = get_impact_ice_comet(self.time_arr, self.df, cfg, rng)
-        # if cfg.impact_ice_comets:
-        #     # comet_ice is run every time for repro, but only add if needed
-        #     impact_ice += comet_ice
-        # solar_wind_ice = get_solar_wind_ice(self.time_arr, cfg)
-        # ice_polar = (impact_ice + solar_wind_ice)[:, None]
-        # ice_volcanic = get_volcanic_ice(self.time_arr, cfg)[:, None]
-
-        # # one per time array
-        # # print(impact_ice.shape) # 425
-        # # print(solar_wind_ice.shape) # 425
-        # # print(ice_volcanic.shape) # 425 x 1
-
-        # if cfg.use_volc_dep_effcy:
-        #     # Rescale by volc dep effcy, apply evenly to all coldtraps
-        #     ice_volcanic *= cfg.volc_dep_effcy / cfg.ballistic_hop_effcy
-        # else:
-        #     # Treat as ballistically hopping polar ice
-        #     ice_polar += ice_volcanic
-        #     ice_volcanic *= 0
-
-        # # Rescale by ballistic hop efficiency per coldtrap
-        # if cfg.ballistic_hop_moores:
-        #     bhops = get_ballistic_hop_coldtraps(list(cfg.coldtrap_names), cfg)
-        #     bhops /= cfg.ballistic_hop_effcy
-        #     ice_polar = bhops * ice_polar  # row * col -> 2D arr
-        # else:
-        #     ice_polar = np.tile(ice_polar, len(cfg.coldtrap_names))
-        # ice_cols = ice_polar + ice_volcanic
-
 
         # # Get cold trap crater names (corresponds to columns in ej_cols, ice_cols)
         # self.ctraps = cfg.coldtrap_names
@@ -185,17 +155,18 @@ class MoonPIES():
         # Update all coldtrap ice_cols
         for i, coldtrap in enumerate(self.cfg.coldtrap_names):
 
-            ice_col, ej_col, _ = self.strat_cols[coldtrap]
+            self.ice_col, ej_col, _ = self.strat_cols[coldtrap]
 
             # Ballistic sed gardens column before any ice gain (timestep t-1)
-            ice_col = garden_ice_column(ice_col, ej_col, t - 1, self.bsed_depth[t,i], self.bsed_frac[t,i])
+            self.ice_col = garden_ice_column(self.ice_col, ej_col, t - 1, self.bsed_depth[t,i], self.bsed_frac[t,i])
 
-            # Ice "gained" by column (already pre-computed in ice_col[t])
+            # Ice "gained" by column
+            self.deliver_ice(t)
 
             # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
-            ice_col = remove_ice_overturn(ice_col, ej_col, t, overturn_d, self.cfg)
+            self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
 
-            self.strat_cols[coldtrap][0] = ice_col  # Redundant (updated in place)
+            self.strat_cols[coldtrap][0] = self.ice_col  # Redundant (updated in place)
 
 
     # run through all time steps
@@ -203,8 +174,12 @@ class MoonPIES():
         vprint(self.cfg, "Starting main loop...")
         
         # Loop through all timesteps
-        for t, overturn_t in enumerate(self.overturn):
-            self.update(t, overturn_t)
+        t = cfg.timestart + cfg.timestep # start with second timestep
+        i = 0
+        while t < cfg.timeend:
+            self.update(t, self.overturn[i])
+            t += cfg.timestep
+            i += 1
 
     # save the output
     def save_output(self):
@@ -212,13 +187,89 @@ class MoonPIES():
 
     # plot the output
     def show(self):
-        pass
+        
+        if os.path.exists(self.cfg.out_path) == False:
+            os.makedirs(self.cfg.out_path)
+
+        # display the psr and slope data (to see what it looks like)
+        fig, ax = plt.subplots(1,2)
+        ax[0].imshow(self.psr, cmap='binary')
+        ax[1].imshow(self.slope, cmap='coolwarm')
+        ax[0].axis('off')
+        ax[1].axis('off')
+        ax[0].set_title('PSRs')
+        ax[1].set_title('Slope')
+        plt.savefig(os.path.join(self.cfg.out_path, 'tif_files.png'), bbox_inches='tight', dpi=100)
+        plt.close()
+
+        # crater mask over PSRs
+        crater_mask_all = np.any(self.crater_mask[self.df['isbasin']==False], axis=0)
+        basin_mask_all = np.any(self.crater_mask[self.df['isbasin']], axis=0)
+        # print(crater_mask_all.shape) # 608 x 608
+
+        fig, ax = plt.subplots()
+        ax.imshow(self.psr, cmap='binary')
+        ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5)
+        ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5)
+        ax.axis('off')
+        plt.savefig(os.path.join(self.cfg.out_path, 'craters_and_psrs.png'), bbox_inches='tight', dpi=100)
+        plt.close()
+
+        # ice column
+        fig, ax = plt.subplots()
+        im = ax.imshow(self.ice_cols, cmap='Blues')
+        fig.colorbar(im, ax=ax)
+        plt.savefig(os.path.join(self.cfg.out_path, 'ice_cols.png'), dpi=100, bbox_inches='tight')
+        plt.close()
+
+
+    # deliver ice for a given time step t
+    def deliver_ice(self, t):
+
+        impact_ice = get_impact_ice(t, self.df, self.cfg, self.rng)
+        comet_ice = get_impact_ice_comet(t, self.df, self.cfg, self.rng)
+        if self.cfg.impact_ice_comets:
+            # comet_ice is run every time for repro, but only add if needed
+            impact_ice += comet_ice
+        solar_wind_ice = get_solar_wind_ice(t, self.cfg)
+        ice_polar = (impact_ice + solar_wind_ice)[:, None]
+        ice_volcanic = get_volcanic_ice(t, self.cfg)[:, None]
+        # print(ice_polar.shape) # 1 x 1
+        # print(ice_volcanic.shape) # 1 x 1
+
+        if self.cfg.use_volc_dep_effcy:
+            # Rescale by volc dep effcy, apply evenly to all coldtraps
+            ice_volcanic *= self.cfg.volc_dep_effcy / self.cfg.ballistic_hop_effcy
+        else:
+            # Treat as ballistically hopping polar ice
+            ice_polar += ice_volcanic
+            ice_volcanic *= 0
+
+        # Rescale by ballistic hop efficiency per coldtrap
+        # TODO: should bhop efficiency be applied to full PSR? or should it be distributed 
+        # throughout the PSR based on area or something like that so the total ice over the 
+        # PSR represents the efficiency? (i.e. is it a ratio or is it an overall amount)
+        # currently assuming we can use the efficiency at all locations in the PSR as is
+        n_ct = len(self.cfg.coldtrap_names)
+        if self.cfg.ballistic_hop_moores:
+            bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct,1,1))
+            # print(bhops.shape) # 1 x 12
+            bhops_grid = np.zeros_like(self.psr)
+            bhops_grid = np.sum(bhops * self.coldtrap_mask, axis=0) # 608 x 608
+            bhops_grid /= self.cfg.ballistic_hop_effcy
+            ice_polar = bhops_grid * ice_polar
+        else:
+            ice_polar = np.ones_like(self.psr) * ice_polar
+        
+        self.ice_cols = ice_polar + ice_volcanic # this should become 2D I think
+        # print(self.ice_cols.shape) # 608 x 608
 
 
 # main entrypoint function
 def main(cfg):
     mp = MoonPIES(cfg)
     # mp.run()
+    mp.show()
     # return mp.save_output()
 
 
