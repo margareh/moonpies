@@ -113,37 +113,42 @@ class MoonPIES():
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
-        dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg)
+        # dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg)
+        dists_masked = copy.copy(self.crater_dist_grid)
+        cr_id = 0
+        for i, row in self.df.iterrows():
+            mask = dists_masked[cr_id,...] < row[['rad']].values
+            dists_masked[cr_id, mask] = np.nan
+            cr_id += 1
         self.ej_thick_grid = get_ejecta_thickness(dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
 
-        # Compute initial amount of ice
+        # initial values based on start time of sim
         t_init = np.array([copy.copy(self.cfg.timestart)]).astype(self.cfg.dtype)
+
+        # Compute initial ejecta thickness
+        self.get_ejecta_thickness_t(t_init)
+
+        # Compute initial amount of ice
+        # TODO: compare to prior method of delivering ice
+        # make sure that basin impacts are only being attributed to time steps that are close to the current one
         self.deliver_ice(t_init) # results stored in self.ice_col
 
-        # save in the ice grid!
-
-        # # TODO: review from here down to see how we can change the code to account for spatial distribution
-        # # Init strat columns dict based for all cfg.coldtrap_names
-        # self.ej_dists = get_coldtrap_dists(self.df, cfg)  # Crater -> coldtrap distances (2D)
-        # print(self.ej_dists.shape) # 51 x 12 (51 craters --> 12 coldtraps)
-        
-        # ej_cols, ej_srcs = get_ejecta_thickness_time(self.time_arr, self.df, self.ej_dists, self.cfg)
-        # print(ej_cols.shape) # 425 x 12
-        
-
-        # # Get cold trap crater names (corresponds to columns in ej_cols, ice_cols)
-        # self.ctraps = cfg.coldtrap_names
-
+        # TODO: save in the ice grid!
+        # TODO: do we need to build the strat columns?
         # # Build strat columns as {cname: ice_col, ej_col, ej_src}
         # self.strat_cols = {
         #     coldtrap: [ice_cols[:, i], ej_cols[:, i], ej_srcs[:, i]]
         #     for i, coldtrap in enumerate(self.ctraps)
         # }
-        
-        # # Get gardening and bsed time arrays
-        # self.bsed_depth, self.bsed_frac = get_bsed_depth(self.time_arr, self.df, self.ej_dists, cfg) # ballistic sedimentation depth, fraction by time
-        # self.overturn = overturn_depth_time(self.time_arr, cfg) # overturn depth by time
+
+        # TODO: review and adjust with ejecta thickness compute for time above
+        # probably won't use this here? move to a function that is called in the update step
+        # ballistic sedimentation depth, fraction by time
+        # self.bsed_depth, self.bsed_frac = get_bsed_depth(t_init, self.df, self.ej_dists, cfg)
+
+        # # Pre-compute overturn depth
+        self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
         # # print(self.bsed_depth.shape) # 425 x 12 (time x coldtrap)
         # # print(self.bsed_frac.shape) # 425 x 12
         # # print(self.overturn.shape) # 425 (time)
@@ -153,19 +158,23 @@ class MoonPIES():
     def update(self, t, overturn_d):
         
         # Update all coldtrap ice_cols
+        # TODO: won't be iterating over cold traps once it's all spatial
         for i, coldtrap in enumerate(self.cfg.coldtrap_names):
 
             self.ice_col, ej_col, _ = self.strat_cols[coldtrap]
 
             # Ballistic sed gardens column before any ice gain (timestep t-1)
+            # TODO: update using new bsed depth and fraction calcs
             self.ice_col = garden_ice_column(self.ice_col, ej_col, t - 1, self.bsed_depth[t,i], self.bsed_frac[t,i])
 
             # Ice "gained" by column
             self.deliver_ice(t)
 
             # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
+            # TODO: remove ice in new way (update after updating garden_ice_column)
             self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
 
+            # TODO: replace with updates to ice grid structure
             self.strat_cols[coldtrap][0] = self.ice_col  # Redundant (updated in place)
 
 
@@ -180,12 +189,14 @@ class MoonPIES():
             self.update(t, self.overturn[i])
             t += cfg.timestep
             i += 1
+    
 
     # save the output
     def save_output(self):
         return format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
 
-    # plot the output
+
+    # plot some helpful things
     def show(self):
         
         if os.path.exists(self.cfg.out_path) == False:
@@ -221,6 +232,26 @@ class MoonPIES():
         fig.colorbar(im, ax=ax)
         plt.savefig(os.path.join(self.cfg.out_path, 'ice_cols.png'), dpi=100, bbox_inches='tight')
         plt.close()
+
+
+    # compute the ejecta thickness over spatial grid for a given time t
+    def get_ejecta_thickness_t(self, t):
+
+        # ej_dists = distances between craters and cold traps
+        # want to use actual distances between craters and grid locations
+        # this should be stored in self.crater_dist_grid (note that interiors are not masked here)
+        dists_masked = copy.copy(self.crater_dist_grid)
+        cr_id = 0
+        for i, row in self.df.iterrows():
+            mask = dists_masked[cr_id,...] < row[['rad']].values
+            dists_masked[cr_id, mask] = np.nan
+            cr_id += 1
+        
+        # TODO: below function assumes distances are crater to coldtrap
+        # need to adjust this because we have different distances now
+        # ej_cols, ej_srcs = get_ejecta_thickness_time(t, self.df, dists_masked, self.cfg)
+        # print(ej_cols.shape) # 425 x 12
+        pass
 
 
     # deliver ice for a given time step t
