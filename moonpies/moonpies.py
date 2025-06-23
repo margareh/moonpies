@@ -74,6 +74,7 @@ class MoonPIES():
         # print(n_basin) # 27
 
         # Combine DataFrames and randomize ages
+        # randomization function also sorts based on age and name
         df = pd.concat([df_craters, df_basins])
         self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
 
@@ -229,9 +230,14 @@ class MoonPIES():
         plt.close()
 
         # ice column
-        fig, ax = plt.subplots(figsize=(10,10))
-        im = ax.imshow(self.ice_cols, cmap='Blues')
-        fig.colorbar(im, ax=ax)
+        fig, ax = plt.subplots(1, 2, figsize=(20,10))
+        im = ax[0].imshow(self.ice_cols, cmap='Blues')
+        im2 = ax[1].imshow(self.ej_col, cmap='Oranges')
+        ax[0].set_title('Ice')
+        ax[1].set_title('Ejecta')
+        fig.colorbar(im, ax=ax[0])
+        fig.colorbar(im2, ax=ax[1])
+
         plt.savefig(os.path.join(self.cfg.out_path, 'ice_cols.png'), dpi=100, bbox_inches='tight')
         plt.close()
 
@@ -250,17 +256,8 @@ class MoonPIES():
             cr_id += 1
         
         ej_ages = self.df.age.values
-        print(ej_ages <= t)
         ej_formed = self.ej_thick_grid[(ej_ages <= t), ...]
-        print(ej_formed.shape)
-        ej_thick = np.sum(ej_formed, axis=0)
-        print(ej_thick.shape)
-
-        # TODO: below function assumes distances are crater to coldtrap
-        # need to adjust this because we have different distances now
-        # ej_cols, ej_srcs = get_ejecta_thickness_time(t, self.df, dists_masked, self.cfg)
-        # print(ej_cols.shape) # 425 x 12
-        pass
+        self.ej_col = np.sum(ej_formed, axis=0)
 
 
     # deliver ice for a given time step t
