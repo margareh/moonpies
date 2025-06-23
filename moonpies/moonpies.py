@@ -127,6 +127,8 @@ class MoonPIES():
         t_init = np.array([copy.copy(self.cfg.timestart)]).astype(self.cfg.dtype)
 
         # Compute initial ejecta thickness
+        # this is equivalent to the total ejecta thickness for all craters that have been formed
+        # by a specified time t
         self.get_ejecta_thickness_t(t_init)
 
         # Compute initial amount of ice
@@ -203,7 +205,7 @@ class MoonPIES():
             os.makedirs(self.cfg.out_path)
 
         # display the psr and slope data (to see what it looks like)
-        fig, ax = plt.subplots(1,2)
+        fig, ax = plt.subplots(1, 2, figsize=(20, 10))
         ax[0].imshow(self.psr, cmap='binary')
         ax[1].imshow(self.slope, cmap='coolwarm')
         ax[0].axis('off')
@@ -218,7 +220,7 @@ class MoonPIES():
         basin_mask_all = np.any(self.crater_mask[self.df['isbasin']], axis=0)
         # print(crater_mask_all.shape) # 608 x 608
 
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10,10))
         ax.imshow(self.psr, cmap='binary')
         ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5)
         ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5)
@@ -227,7 +229,7 @@ class MoonPIES():
         plt.close()
 
         # ice column
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(10,10))
         im = ax.imshow(self.ice_cols, cmap='Blues')
         fig.colorbar(im, ax=ax)
         plt.savefig(os.path.join(self.cfg.out_path, 'ice_cols.png'), dpi=100, bbox_inches='tight')
@@ -247,6 +249,13 @@ class MoonPIES():
             dists_masked[cr_id, mask] = np.nan
             cr_id += 1
         
+        ej_ages = self.df.age.values
+        print(ej_ages <= t)
+        ej_formed = self.ej_thick_grid[(ej_ages <= t), ...]
+        print(ej_formed.shape)
+        ej_thick = np.sum(ej_formed, axis=0)
+        print(ej_thick.shape)
+
         # TODO: below function assumes distances are crater to coldtrap
         # need to adjust this because we have different distances now
         # ej_cols, ej_srcs = get_ejecta_thickness_time(t, self.df, dists_masked, self.cfg)
