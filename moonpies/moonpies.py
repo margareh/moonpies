@@ -205,10 +205,14 @@ class MoonPIES():
         if os.path.exists(self.cfg.out_path) == False:
             os.makedirs(self.cfg.out_path)
 
+        # lrbt
+        # from tif file (pre-downsample): -304000, 304000, -304000, 304000
+        map_ext = [-304000, 304000, -304000, 304000]
+
         # display the psr and slope data (to see what it looks like)
         fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-        ax[0].imshow(self.psr, cmap='binary')
-        ax[1].imshow(self.slope, cmap='coolwarm')
+        ax[0].imshow(self.psr, cmap='binary', extent=map_ext)
+        ax[1].imshow(self.slope, cmap='coolwarm', extent=map_ext)
         ax[0].axis('off')
         ax[1].axis('off')
         ax[0].set_title('PSRs')
@@ -222,17 +226,17 @@ class MoonPIES():
         # print(crater_mask_all.shape) # 608 x 608
 
         fig, ax = plt.subplots(figsize=(10,10))
-        ax.imshow(self.psr, cmap='binary')
-        ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5)
-        ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5)
+        ax.imshow(self.psr, cmap='binary', extent=map_ext)
+        ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
+        ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
         ax.axis('off')
         plt.savefig(os.path.join(self.cfg.out_path, 'craters_and_psrs.png'), bbox_inches='tight', dpi=100)
         plt.close()
 
         # ice column
         fig, ax = plt.subplots(1, 2, figsize=(20,10))
-        im = ax[0].imshow(self.ice_cols, cmap='Blues')
-        im2 = ax[1].imshow(self.ej_col, cmap='Oranges')
+        im = ax[0].imshow(self.ice_cols, cmap='Blues', extent=map_ext)
+        im2 = ax[1].imshow(self.ej_col, cmap='Oranges', extent=map_ext)
         ax[0].set_title('Ice')
         ax[1].set_title('Ejecta')
         fig.colorbar(im, ax=ax[0])
