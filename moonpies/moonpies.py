@@ -53,24 +53,24 @@ class MoonPIES():
         # print(self.time_arr.shape) # 425
 
         # Setup ice distribution grid structure
-        depthsize = int(cfg.depthmax / cfg.depthres)
-        grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
-        grdysize_px = int(cfg.grdysize / cfg.grdstep)
+        # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
+        # grdysize_px = int(cfg.grdysize / cfg.grdstep)
         self.grdy, self.grdx = get_grid_arrays(cfg)
-        self.ice_col_grid = np.zeros((self.grdy.shape[0], self.grdx.shape[1], depthsize))
-        # print(self.ice_col_grid.shape) # 608 x 608 x 70
+        # this has 2 channels for depth and ice pct
+        self.ice_col_grid = np.zeros((self.grdy.shape[0], self.grdx.shape[1], 2))
+        # print(self.ice_col_grid.shape) # 608 x 608
 
         # Setup crater list
         df_craters = read_crater_list(cfg)
         df_craters["isbasin"] = False
         df_craters["icy_impactor"] = "no"
-        n_crater = len(df_craters)
+        # n_crater = len(df_craters)
         # print(n_crater) # 24
 
         df_basins = read_basin_list(cfg)
         df_basins["isbasin"] = True
         df_basins = random_icy_basins(df_basins, cfg, self.rng)
-        n_basin = len(df_basins)
+        # n_basin = len(df_basins)
         # print(n_basin) # 27
 
         # Combine DataFrames and randomize ages
@@ -105,7 +105,7 @@ class MoonPIES():
                 self.coldtrap_flag[cr_id] = 1
             cr_id += 1
         # print(self.coldtrap_flag.sum()) # 12
-        n_ct = len(self.cfg.coldtrap_names)
+        # n_ct = len(self.cfg.coldtrap_names)
 
         self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
         # print(self.df.iloc[self.coldtrap_inds])
@@ -130,20 +130,16 @@ class MoonPIES():
         # Compute initial ejecta thickness
         # this is equivalent to the total ejecta thickness for all craters that have been formed
         # by a specified time t
-        self.get_ejecta_thickness_t(t_init)
+        self.get_ejecta_thickness_t(t_init) # results stored in self.ej_col
 
         # Compute initial amount of ice
         # TODO: compare to prior method of delivering ice
         # make sure that basin impacts are only being attributed to time steps that are close to the current one
-        self.deliver_ice(t_init) # results stored in self.ice_col
+        self.deliver_ice(t_init) # results stored in self.ice_cols
 
-        # TODO: save in the ice grid!
-        # TODO: do we need to build the strat columns?
-        # # Build strat columns as {cname: ice_col, ej_col, ej_src}
-        # self.strat_cols = {
-        #     coldtrap: [ice_cols[:, i], ej_cols[:, i], ej_srcs[:, i]]
-        #     for i, coldtrap in enumerate(self.ctraps)
-        # }
+        # save in the ice grid!
+        self.ice_col_grid[..., 0] = self.ice_cols + self.ej_col # depth
+        self.ice_col_grid[..., 1] = self.ice_cols / self.ice_col_grid[..., 0] # ice fraction
 
         # TODO: review and adjust with ejecta thickness compute for time above
         # probably won't use this here? move to a function that is called in the update step
@@ -168,7 +164,7 @@ class MoonPIES():
 
             # Ballistic sed gardens column before any ice gain (timestep t-1)
             # TODO: update using new bsed depth and fraction calcs
-            self.ice_col = garden_ice_column(self.ice_col, ej_col, t - 1, self.bsed_depth[t,i], self.bsed_frac[t,i])
+            self.ice_col = garden_ice_column(self.ice_col, ej_col, t-cfg.timestep, self.bsed_depth[t,i], self.bsed_frac[t,i])
 
             # Ice "gained" by column
             self.deliver_ice(t)
@@ -242,7 +238,19 @@ class MoonPIES():
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
-        plt.savefig(os.path.join(self.cfg.out_path, 'ice_cols.png'), dpi=100, bbox_inches='tight')
+        plt.savefig(os.path.join(self.cfg.out_path, 'ice_and_ejecta.png'), dpi=100, bbox_inches='tight')
+        plt.close()
+
+        # ice depth and fraction
+        fig, ax = plt.subplots(1, 2, figsize=(20,10))
+        im = ax[0].imshow(self.ice_col_grid[...,0], cmap='Oranges', extent=map_ext)
+        im2 = ax[1].imshow(self.ice_col_grid[...,1], cmap='Blues', extent=map_ext)
+        ax[0].set_title('Depth')
+        ax[1].set_title('Ice Fraction')
+        fig.colorbar(im, ax=ax[0])
+        fig.colorbar(im2, ax=ax[1])
+
+        plt.savefig(os.path.join(self.cfg.out_path, 'ice_depth_and_fraction.png'), dpi=100, bbox_inches='tight')
         plt.close()
 
 

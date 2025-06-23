@@ -134,8 +134,6 @@ class Cfg:
     timestart: int = 4.25e9  # [yr]
     timeend: int = 0  # [yr]
     timestep: int = 10e6  # [yr]
-    depthres: float = 6 # [m / cell]
-    depthmax: int = 420 # [m]
     tif_mpp: int = 20 # [m / pixel]
 
     # Lunar constants
