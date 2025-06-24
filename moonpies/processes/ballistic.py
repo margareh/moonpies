@@ -287,10 +287,14 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
         return arr
 
     mdf = read_ballistic_melt_frac(cfg, True)
+    print(len(mdf))
     temps = insert_unique_in_range(ejecta_temps, mdf.columns.to_numpy())
     mrs = insert_unique_in_range(mixing_ratios, mdf.index.to_numpy())
+    print(temps.shape)
+    print(mrs.shape)
     mdf = mdf.reindex(index=mrs, columns=temps)
     minterp = mdf.interpolate(axis=0).interpolate(axis=1)
+    print(len(minterp))
 
     # Interpolate melt_frac at each non-nan ejecta_temp, mixing_ratio
     inds = np.argwhere(~np.isnan(mixing_ratios))

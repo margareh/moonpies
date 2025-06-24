@@ -23,12 +23,12 @@ import matplotlib.pyplot as plt
 
 from moonpies import config
 
-from moonpies.utils.utils import vprint, clear_cache, get_coldtrap_dists, get_grid_arrays
+from moonpies.utils.utils import vprint, clear_cache, get_grid_arrays
 from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
 from moonpies.utils.load_data import read_crater_list, read_basin_list, load_tifs
 from moonpies.utils.save_output import format_save_outputs, get_gc_dist_grid
 
-from moonpies.processes.ballistic import get_bsed_depth, get_ejecta_thickness_time, get_ejecta_thickness
+from moonpies.processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp, get_melt_frac
 from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
 from moonpies.processes.volcanic import get_volcanic_ice
 from moonpies.processes.solar_wind import get_solar_wind_ice
@@ -115,13 +115,13 @@ class MoonPIES():
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
         # dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg)
-        dists_masked = copy.copy(self.crater_dist_grid)
+        self.dists_masked = copy.copy(self.crater_dist_grid)
         cr_id = 0
         for i, row in self.df.iterrows():
-            mask = dists_masked[cr_id,...] < row[['rad']].values
-            dists_masked[cr_id, mask] = np.nan
+            mask = self.dists_masked[cr_id,...] < row[['rad']].values
+            self.dists_masked[cr_id, mask] = np.nan
             cr_id += 1
-        self.ej_thick_grid = get_ejecta_thickness(dists_masked, rad, self.cfg)
+        self.ej_thick_grid = get_ejecta_thickness(self.dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
 
         # initial values based on start time of sim
@@ -141,40 +141,40 @@ class MoonPIES():
         self.ice_col_grid[..., 0] = self.ice_cols + self.ej_col # depth
         self.ice_col_grid[..., 1] = self.ice_cols / self.ice_col_grid[..., 0] # ice fraction
 
-        # TODO: review and adjust with ejecta thickness compute for time above
-        # probably won't use this here? move to a function that is called in the update step
-        # ballistic sedimentation depth, fraction by time
-        # self.bsed_depth, self.bsed_frac = get_bsed_depth(t_init, self.df, self.ej_dists, cfg)
-
         # # Pre-compute overturn depth
         self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
-        # # print(self.bsed_depth.shape) # 425 x 12 (time x coldtrap)
-        # # print(self.bsed_frac.shape) # 425 x 12
         # # print(self.overturn.shape) # 425 (time)
 
         
     # update for one time step at a time
     def update(self, t, overturn_d):
         
-        # Update all coldtrap ice_cols
-        # TODO: won't be iterating over cold traps once it's all spatial
-        for i, coldtrap in enumerate(self.cfg.coldtrap_names):
+        # Ballistic sed gardens column before any ice gain
+        # TODO: update using new bsed depth and fraction calcs
+        self.garden_ice(t-cfg.timestep)
 
-            self.ice_col, ej_col, _ = self.strat_cols[coldtrap]
+        # Ice "gained" by column
+        # this updates self.ice_cols directly
+        # self.deliver_ice(t)
 
-            # Ballistic sed gardens column before any ice gain (timestep t-1)
-            # TODO: update using new bsed depth and fraction calcs
-            self.ice_col = garden_ice_column(self.ice_col, ej_col, t-cfg.timestep, self.bsed_depth[t,i], self.bsed_frac[t,i])
+        # Ice gardened at end of timestep, i.e. after ice gain
+        # self.overturn_ice(t, overturn_d)
 
-            # Ice "gained" by column
-            self.deliver_ice(t)
+        # below is old code
+        # for i, coldtrap in enumerate(self.cfg.coldtrap_names):
 
-            # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
-            # TODO: remove ice in new way (update after updating garden_ice_column)
-            self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
+        #     self.ice_col, ej_col, _ = self.strat_cols[coldtrap]
 
-            # TODO: replace with updates to ice grid structure
-            self.strat_cols[coldtrap][0] = self.ice_col  # Redundant (updated in place)
+        #     # Ballistic sed gardens column before any ice gain (timestep t-1)
+        #     self.ice_col = garden_ice_column(self.ice_col, ej_col, t-cfg.timestep, self.bsed_depth[t,i], self.bsed_frac[t,i])
+
+        #     # Ice "gained" by column
+        #     self.deliver_ice(t)
+
+        #     # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
+        #     self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
+
+        #     self.strat_cols[coldtrap][0] = self.ice_col  # Redundant (updated in place)
 
 
     # run through all time steps
@@ -184,7 +184,8 @@ class MoonPIES():
         # Loop through all timesteps
         t = cfg.timestart + cfg.timestep # start with second timestep
         i = 0
-        while t < cfg.timeend:
+        # while t < cfg.timeend:
+        while t < cfg.timestart + 2*cfg.timestep:
             self.update(t, self.overturn[i])
             t += cfg.timestep
             i += 1
@@ -310,8 +311,41 @@ class MoonPIES():
         else:
             ice_polar = np.ones_like(self.psr) * ice_polar
         
-        self.ice_cols = ice_polar + ice_volcanic # this should become 2D I think
+        # TODO: this is total per cold trap, currently assigning it to the same point in each CT
+        # need to adjust so we aren't over-representing amount of ice
+        self.ice_cols = ice_polar + ice_volcanic
         # print(self.ice_cols.shape) # 608 x 608
+
+
+    # garden ice with ballistic sedimentation for a given time step t
+    def garden_ice(self, t):
+        
+        # compute ballistic sedimentation depth and fraction
+        # self.bsed_depth, self.bsed_frac = get_bsed_depth(t_init, self.df, self.ej_dists, cfg)
+        if self.cfg.ballistic_sed:
+        
+            mixing_ratio = get_mixing_ratio_oberbeck(self.dists_masked, cfg) # 51 x 608 x 608
+            ej_temp = ejecta_temp(self.df, cfg) # n_crater+n_basin
+            print(mixing_ratio.shape)
+            print(ej_temp.shape)
+            melt_frac = get_melt_frac(ej_temp, mixing_ratio, cfg) # TODO: fix this
+            bsed_depths = self.ej_thick_grid * mixing_ratio # Petro and Pieters (2004)
+            melt_frac *= cfg.ballistic_sed_frac_lost # Scale by fraction lost from column (default 100%)
+
+        else:
+            bsed_depths = np.zeros_like(self.psr)
+            melt_frac = np.zeros_like(self.psr)
+
+        # use in gardening the ice column
+        # self.ice_col = garden_ice_column(self.ice_col, ej_col, t-1, self.bsed_depth[t,i], self.bsed_frac[t,i])
+        
+        pass
+
+    
+    # overturn ice for a given time step t and overturn depth d
+    def overturn_ice(self, t, d):
+        # self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
+        pass
 
 
 # main entrypoint function
