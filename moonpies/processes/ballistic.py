@@ -303,7 +303,6 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
     zz = mdf.values.astype(np.float64).reshape((nx*ny))
 
     spl = bisplrep(xx, yy, zz)
-    print(spl)
 
     melt_frac = np.zeros_like((mixing_ratios))
     n = mixing_ratios.shape[1]
