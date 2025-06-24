@@ -326,10 +326,10 @@ class MoonPIES():
         
             mixing_ratio = get_mixing_ratio_oberbeck(self.dists_masked, self.cfg) # 51 x 608 x 608
             ej_temp = ejecta_temp(self.df, self.cfg) # n_crater+n_basin
-            print(mixing_ratio.shape)
-            print(ej_temp.shape)
             melt_frac = get_melt_frac(ej_temp, mixing_ratio, self.cfg) # TODO: fix this
+            print(melt_frac.shape) # 51 x 608 x 608
             bsed_depths = self.ej_thick_grid * mixing_ratio # Petro and Pieters (2004)
+            print(bsed_depths.shape) # 51 x 608 x 608
             melt_frac *= self.cfg.ballistic_sed_frac_lost # Scale by fraction lost from column (default 100%)
 
         else:

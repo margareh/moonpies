@@ -2,7 +2,11 @@
 Ballistic sedimentation and hopping module
 """
 
+import copy
 import numpy as np
+
+from scipy.interpolate import bisplrep, bisplev
+
 from moonpies.utils.load_data import read_ballistic_melt_frac
 from moonpies.utils.utils import ages2time
 from moonpies.models.impactor import final2transient
@@ -278,30 +282,53 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
     --------
     read_ballistic_melt_frac
     """
-    def insert_unique_in_range(src, target):
-        """Return sorted target with unique values in src inserted."""
-        uniq = np.unique(src[~np.isnan(src)])
-        # Ensure in range of target
-        uniq = uniq[(target.min() < uniq) & (uniq < target.max())]
-        arr = np.sort(np.unique(np.concatenate([target, uniq])))
-        return arr
+    # def insert_unique_in_range(src, target):
+    #     """Return sorted target with unique values in src inserted."""
+    #     uniq = np.unique(src[~np.isnan(src)])
+    #     # Ensure in range of target
+    #     uniq = uniq[(target.min() < uniq) & (uniq < target.max())]
+    #     arr = np.sort(np.unique(np.concatenate([target, uniq])))
+    #     return arr
 
     mdf = read_ballistic_melt_frac(cfg, True)
-    print(len(mdf)) # 40
-    temps = insert_unique_in_range(ejecta_temps, mdf.columns.to_numpy())
-    mrs = insert_unique_in_range(mixing_ratios, mdf.index.to_numpy())
-    print(temps.shape) # 81
-    print(mrs.shape) # 12305047 --> this is a problem
-    mdf = mdf.reindex(index=mrs, columns=temps)
-    minterp = mdf.interpolate(axis=0).interpolate(axis=1)
-    print(len(minterp))
+    
+    # set up bivariate spline interpolation
+    x = mdf.columns.to_numpy().astype(np.float64)
+    y = mdf.index.to_numpy().astype(np.float64)
+    nx = len(x)
+    ny = len(y)
+    xx, yy = np.meshgrid(x, y) # these have shape nx x ny
+    xx = xx.reshape((nx*ny))
+    yy = yy.reshape((nx*ny))
+    zz = mdf.values.astype(np.float64).reshape((nx*ny))
 
-    # Interpolate melt_frac at each non-nan ejecta_temp, mixing_ratio
-    inds = np.argwhere(~np.isnan(mixing_ratios))
-    melt_frac = np.zeros_like(mixing_ratios)
-    for i, j in inds:
-        melt_frac[i, j] = minterp.loc[mixing_ratios[i, j], ejecta_temps[i, j]]
+    spl,_,_,_ = bisplrep(xx, yy, zz)
+
+    melt_frac = np.zeros_like((mixing_ratios))
+    n = mixing_ratios.shape[0]
+    for i in range(len(ejecta_temps)):
+        
+        # get mixing ratios and ejecta temp for this crater
+        curr_mix = copy.copy(mixing_ratios[i,...]).reshape((n*n))
+        curr_temp = np.ones((n*n)) * ejecta_temps[i]
+
+        # interpolate for these values
+        melt_frac[i,...] = bisplev(curr_temp, curr_mix, spl).reshape((n,n))
+    
     return melt_frac
+
+
+    # temps = insert_unique_in_range(ejecta_temps, mdf.columns.to_numpy())
+    # mrs = insert_unique_in_range(mixing_ratios, mdf.index.to_numpy())
+    # mdf = mdf.reindex(index=mrs, columns=temps)
+    # minterp = mdf.interpolate(axis=0).interpolate(axis=1)
+
+    # # Interpolate melt_frac at each non-nan ejecta_temp, mixing_ratio
+    # inds = np.argwhere(~np.isnan(mixing_ratios))
+    # melt_frac = np.zeros_like(mixing_ratios)
+    # for i, j in inds:
+    #     melt_frac[i, j] = minterp.loc[mixing_ratios[i, j], ejecta_temps[i, j]]
+    # return melt_frac
 
 
 def kinetic_energy(mass, velocity):
