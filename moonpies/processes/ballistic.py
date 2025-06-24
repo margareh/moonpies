@@ -302,15 +302,16 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
     yy = yy.reshape((nx*ny))
     zz = mdf.values.astype(np.float64).reshape((nx*ny))
 
-    spl,_,_,_ = bisplrep(xx, yy, zz)
+    spl = bisplrep(xx, yy, zz)
+    print(spl)
 
     melt_frac = np.zeros_like((mixing_ratios))
-    n = mixing_ratios.shape[0]
+    n = mixing_ratios.shape[1]
     for i in range(len(ejecta_temps)):
         
         # get mixing ratios and ejecta temp for this crater
         curr_mix = copy.copy(mixing_ratios[i,...]).reshape((n*n))
-        curr_temp = np.ones((n*n)) * ejecta_temps[i]
+        curr_temp = np.array([ejecta_temps[i]])
 
         # interpolate for these values
         melt_frac[i,...] = bisplev(curr_temp, curr_mix, spl).reshape((n,n))
