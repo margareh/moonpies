@@ -151,7 +151,7 @@ class MoonPIES():
         
         # Ballistic sed gardens column before any ice gain
         # TODO: update using new bsed depth and fraction calcs
-        self.garden_ice(t-cfg.timestep)
+        self.garden_ice(t-self.cfg.timestep)
 
         # Ice "gained" by column
         # this updates self.ice_cols directly
@@ -182,12 +182,12 @@ class MoonPIES():
         vprint(self.cfg, "Starting main loop...")
         
         # Loop through all timesteps
-        t = cfg.timestart + cfg.timestep # start with second timestep
+        t = self.cfg.timestart + self.cfg.timestep # start with second timestep
         i = 0
         # while t < cfg.timeend:
-        while t < cfg.timestart + 2*cfg.timestep:
+        while t < self.cfg.timestart + 2*self.cfg.timestep:
             self.update(t, self.overturn[i])
-            t += cfg.timestep
+            t += self.cfg.timestep
             i += 1
     
 
@@ -324,13 +324,13 @@ class MoonPIES():
         # self.bsed_depth, self.bsed_frac = get_bsed_depth(t_init, self.df, self.ej_dists, cfg)
         if self.cfg.ballistic_sed:
         
-            mixing_ratio = get_mixing_ratio_oberbeck(self.dists_masked, cfg) # 51 x 608 x 608
-            ej_temp = ejecta_temp(self.df, cfg) # n_crater+n_basin
+            mixing_ratio = get_mixing_ratio_oberbeck(self.dists_masked, self.cfg) # 51 x 608 x 608
+            ej_temp = ejecta_temp(self.df, self.cfg) # n_crater+n_basin
             print(mixing_ratio.shape)
             print(ej_temp.shape)
-            melt_frac = get_melt_frac(ej_temp, mixing_ratio, cfg) # TODO: fix this
+            melt_frac = get_melt_frac(ej_temp, mixing_ratio, self.cfg) # TODO: fix this
             bsed_depths = self.ej_thick_grid * mixing_ratio # Petro and Pieters (2004)
-            melt_frac *= cfg.ballistic_sed_frac_lost # Scale by fraction lost from column (default 100%)
+            melt_frac *= self.cfg.ballistic_sed_frac_lost # Scale by fraction lost from column (default 100%)
 
         else:
             bsed_depths = np.zeros_like(self.psr)
@@ -351,7 +351,7 @@ class MoonPIES():
 # main entrypoint function
 def main(cfg):
     mp = MoonPIES(cfg)
-    # mp.run()
+    mp.run()
     mp.show()
     # return mp.save_output()
 
