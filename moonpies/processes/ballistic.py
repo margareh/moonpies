@@ -287,11 +287,11 @@ def get_melt_frac(ejecta_temps, mixing_ratios, cfg):
         return arr
 
     mdf = read_ballistic_melt_frac(cfg, True)
-    print(len(mdf))
+    print(len(mdf)) # 40
     temps = insert_unique_in_range(ejecta_temps, mdf.columns.to_numpy())
     mrs = insert_unique_in_range(mixing_ratios, mdf.index.to_numpy())
-    print(temps.shape)
-    print(mrs.shape)
+    print(temps.shape) # 81
+    print(mrs.shape) # 12305047 --> this is a problem
     mdf = mdf.reindex(index=mrs, columns=temps)
     minterp = mdf.interpolate(axis=0).interpolate(axis=1)
     print(len(minterp))
