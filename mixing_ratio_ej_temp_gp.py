@@ -28,8 +28,8 @@ class GP(gpytorch.models.ExactGP):
 # load the data from a provided file name
 def load_data(file):
     data = pd.read_csv(file, index_col=0)
-    x = data.columns.to_numpy().astype(np.float64)
-    y = data.index.to_numpy().astype(np.float64)
+    x = data.columns.to_numpy()[1:].astype(np.float64)
+    y = data.index.to_numpy()[1:].astype(np.float64)
     nx = len(x)
     ny = len(y)
     xx, yy = np.meshgrid(x, y) # these have shape nx x ny
