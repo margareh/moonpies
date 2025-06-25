@@ -35,7 +35,8 @@ def load_data(file):
     xx, yy = np.meshgrid(x, y) # these have shape nx x ny
     xx = xx.reshape((nx*ny))
     yy = yy.reshape((nx*ny))
-    zz = data.values.astype(np.float64).reshape((nx*ny))
+    # skip the first row/column because they're all the same values
+    zz = data.values[1:,1:].astype(np.float64).reshape((nx*ny))
     return xx, yy, zz, nx, ny
 
 
