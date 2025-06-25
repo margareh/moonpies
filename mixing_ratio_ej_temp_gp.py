@@ -54,7 +54,7 @@ def fit_gp(xx, yy, zz, iters=1000):
     mod.train()
 
     # set up optimizer
-    opt = torch.optim.Adam(mod.parameters(), lr=0.1)
+    opt = torch.optim.Adam(mod.parameters(), lr=0.01)
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(lik, mod)
 
     # iterate
@@ -89,16 +89,16 @@ def plot_gp(xx, yy, zz, gp_mod, gp_lik, nx, ny):
     fig, ax = plt.subplots(2, 2, figsize=(20,20))
 
     # actual and error
-    im1 = ax[0,0].imshow(zz.reshape((nx, ny)), cmap='plasma')
-    im2 = ax[0,1].imshow(error.reshape((nx, ny)), cmap='coolwarm')
+    im1 = ax[0,0].imshow(zz.reshape((nx, ny), order='F').T, cmap='plasma')
+    im2 = ax[0,1].imshow(error.reshape((nx, ny), order='F').T, cmap='coolwarm')
     ax[0,0].set_title('Actual')
     ax[0,1].set_title('Error')
     fig.colorbar(im1, ax=ax[0,0])
     fig.colorbar(im2, ax=ax[0,1])
 
     # predicted mean and uncertainty
-    im3 = ax[1,0].imshow(zz_mean.reshape((nx, ny)), cmap='plasma')
-    im4 = ax[1,1].imshow(zz_var.reshape((nx, ny)), cmap='Reds')
+    im3 = ax[1,0].imshow(zz_mean.reshape((nx, ny), order='F').T, cmap='plasma')
+    im4 = ax[1,1].imshow(zz_var.reshape((nx, ny), order='F').T, cmap='Reds')
     ax[1,0].set_title('Predicted Mean')
     ax[1,1].set_title('Predicted Uncertainty')
     fig.colorbar(im3, ax=ax[1,0])
