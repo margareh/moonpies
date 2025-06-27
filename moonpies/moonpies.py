@@ -62,7 +62,7 @@ class MoonPIES():
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
         self.grdy, self.grdx = get_grid_arrays(cfg)
         # this has a channel per time step (layer)
-        self.ice_col_grid = np.zeros((self.grdy.shape[0], self.grdx.shape[1], len(self.time_arr)))
+        self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
         # print(self.ice_col_grid.shape) # 608 x 608
 
@@ -143,6 +143,8 @@ class MoonPIES():
         # make sure that basin impacts are only being attributed to time steps that are close to the current one
         self.deliver_ice(t_init) # results stored in self.ice_col_grid
 
+        # TODO: should we have an impact gardening step here?
+
         # Compute depth and fraction of ice
         self.get_depth_frac()
 
@@ -153,8 +155,8 @@ class MoonPIES():
         # Load the data and GP for melt fraction interpolation
         df = pd.read_csv(cfg.bsed_frac_mean_in, index_col=0, dtype=cfg.dtype)
         df.columns = df.columns.astype(cfg.dtype)
-        x = df.columns.to_numpy().astype(np.float64)
-        y = df.index.to_numpy().astype(np.float64)
+        x = df.columns.to_numpy()[1:].astype(np.float64)
+        y = df.index.to_numpy()[1:].astype(np.float64)
         nx = len(x)
         ny = len(y)
         xx, yy = np.meshgrid(x, y) # these have shape nx x ny
@@ -176,23 +178,35 @@ class MoonPIES():
     # update for one time step at a time
     def update(self, t, overturn_d):
         
+        # Ejecta thickness updated
+        print("Deliver ejecta")
+        self.get_ejecta_thickness_t(t)
+
         # Ballistic sed gardens column before any ice gain
         # TODO: update using new bsed depth and fraction calcs
-        self.garden_ice(t-self.cfg.timestep)
-
-        # Ejecta thickness updated
-        # TODO: confirm that this should be updated here instead of somewhere else
-        # self.get_ejecta_thickness_t(t)
+        print("Ballistic sedimentation")
+        self.bsed_garden_ice(t)
+        # print(self.ice_col_grid.shape)
+        # print(self.ej_col_grid.shape)
 
         # Ice "gained" by column
         # this updates self.ice_cols directly
-        # self.deliver_ice(t)
+        print("Deliver ice")
+        self.deliver_ice(t)
+        # print(self.ice_col_grid.shape)
+        # print(self.ej_col_grid.shape)
 
         # Ice gardened at end of timestep, i.e. after ice gain
-        # self.overturn_ice(t, overturn_d)
+        print("Overturn ice")
+        self.overturn_ice(t, overturn_d)
+        # print(self.ice_col_grid.shape)
+        # print(self.ej_col_grid.shape)
 
         # Compute depth and fraction
+        print("Compute depth and fraction of ice")
         self.get_depth_frac()
+        # print(self.depth.shape)
+        # print(self.frac.shape)
 
         # below is old code
         # for i, coldtrap in enumerate(self.cfg.coldtrap_names):
@@ -216,25 +230,38 @@ class MoonPIES():
         vprint(self.cfg, "Starting main loop...")
         
         # Loop through all timesteps
-        t = self.cfg.timestart + self.cfg.timestep # start with second timestep
+        t = self.cfg.timestart - self.cfg.timestep # start with second timestep
         i = 0
-        # while t < cfg.timeend:
-        while t < self.cfg.timestart + 2*self.cfg.timestep:
+        # while t > cfg.timeend: # ACTUAL CODE
+        while t > self.cfg.timestart - 2*self.cfg.timestep: # to run it once for testing
             self.update(t, self.overturn[i])
-            t += self.cfg.timestep
+            t -= self.cfg.timestep
             i += 1
     
 
     # save the output
-    def save_output(self):
+    def save_output(self, suffix=None):
+        self.show(suffix=suffix)
         return format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
 
 
     # plot some helpful things
-    def show(self):
+    def show(self, suffix=None):
         
         if os.path.exists(self.cfg.out_path) == False:
             os.makedirs(self.cfg.out_path)
+
+        # figure names
+        if suffix is not None:
+            fig1_name = 'tif_files_'+suffix+'.png'
+            fig2_name = 'craters_and_psrs_'+suffix+'.png'
+            fig3_name = 'ice_and_ejecta_'+suffix+'.png'
+            fig4_name = 'ice_depth_and_fraction_'+suffix+'.png'
+        else:
+            fig1_name = 'tif_files.png'
+            fig2_name = 'craters_and_psrs.png'
+            fig3_name = 'ice_and_ejecta.png'
+            fig4_name = 'ice_depth_and_fraction.png'
 
         # lrbt
         # from tif file (pre-downsample): -304000, 304000, -304000, 304000
@@ -248,7 +275,7 @@ class MoonPIES():
         # ax[1].axis('off')
         ax[0].set_title('PSRs')
         ax[1].set_title('Slope')
-        plt.savefig(os.path.join(self.cfg.out_path, 'tif_files.png'), bbox_inches='tight', dpi=100)
+        plt.savefig(os.path.join(self.cfg.out_path, fig1_name), bbox_inches='tight', dpi=100)
         plt.close()
 
         # crater mask over PSRs
@@ -261,7 +288,7 @@ class MoonPIES():
         ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
         ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
         # ax.axis('off')
-        plt.savefig(os.path.join(self.cfg.out_path, 'craters_and_psrs.png'), bbox_inches='tight', dpi=100)
+        plt.savefig(os.path.join(self.cfg.out_path, fig2_name), bbox_inches='tight', dpi=100)
         plt.close()
 
         # ice column
@@ -273,7 +300,7 @@ class MoonPIES():
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
-        plt.savefig(os.path.join(self.cfg.out_path, 'ice_and_ejecta.png'), dpi=100, bbox_inches='tight')
+        plt.savefig(os.path.join(self.cfg.out_path, fig3_name), dpi=100, bbox_inches='tight')
         plt.close()
 
         # ice depth and fraction
@@ -285,7 +312,7 @@ class MoonPIES():
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
-        plt.savefig(os.path.join(self.cfg.out_path, 'ice_depth_and_fraction.png'), dpi=100, bbox_inches='tight')
+        plt.savefig(os.path.join(self.cfg.out_path, fig4_name), dpi=100, bbox_inches='tight')
         plt.close()
 
 
@@ -300,6 +327,10 @@ class MoonPIES():
 
     # deliver ice for a given time step t
     def deliver_ice(self, t):
+
+        # make sure time is same data type because otherwise functions below won't work
+        if isinstance(t, np.ndarray) == False:
+            t = np.array([t]).astype(self.cfg.dtype)
 
         impact_ice = get_impact_ice(t, self.df, self.cfg, self.rng)
         comet_ice = get_impact_ice_comet(t, self.df, self.cfg, self.rng)
@@ -338,8 +369,8 @@ class MoonPIES():
         
         # TODO: this is total per cold trap, currently assigning it to the same point in each CT
         # need to adjust so we aren't over-representing amount of ice
-        t_ind = np.argwhere(self.time_arr == t)
-        self.ice_col_grid[t_ind] = ice_polar + ice_volcanic
+        t_ind = int(np.argwhere(self.time_arr == t))
+        self.ice_col_grid[t_ind,...] = ice_polar + ice_volcanic
         # print(self.ice_col_grid.shape) # 608 x 608
 
 
@@ -355,7 +386,11 @@ class MoonPIES():
 
         ice_tot = np.sum(self.ice_col_grid, axis=0)
         ej_tot = np.sum(self.ej_col_grid * ~no_ice_flag, axis=0) # only sum where there's ice
-        self.frac = ice_tot / (ice_tot + ej_tot)
+        self.frac = np.zeros_like(self.depth)
+        # print(self.frac.shape)
+        nonzero = (ice_tot + ej_tot > 0)
+        # print(nonzero.shape)
+        self.frac[nonzero] = ice_tot[nonzero] / (ice_tot[nonzero] + ej_tot[nonzero])
         self.frac[np.sum(~no_ice_flag, axis=0) == 0] = 0 # no ice if depth is max depth
 
 
@@ -363,89 +398,91 @@ class MoonPIES():
     def bsed_garden_ice(self, t):
         
         # flag which craters were created during this time period
-        # only use these for ballistic sedimentation
         ej_ages = self.df.age.values
         crater_flag = (ej_ages > t-self.cfg.timestep) & (ej_ages <= t)
+        
+        # only run if we're using ballistic sedimentation and there are 
+        # cratering events in this time period
+        if len(np.argwhere(crater_flag)) > 0 and self.cfg.ballistic_sed:
 
-        # if no cratering events happened during this time period, exit
-        # TODO: might want to still do gardening step but without ballistic sed?
-        if np.sum(crater_flag) == 0:
-            return
-
-        # compute ballistic sedimentation depth and fraction
-        if self.cfg.ballistic_sed:
-
+            # compute ballistic sedimentation depth and fraction
             dists_t = self.dists_masked[crater_flag,...] # should be n x 608 x 608 with n = sum(crater_flag)
             mixing_ratio = get_mixing_ratio_oberbeck(dists_t, self.cfg) # n x 608 x 608
-            ej_temp = ejecta_temp(self.df.loc[[crater_flag]], self.cfg) # n
-            bsed_depths = self.ej_thick_grid * mixing_ratio # Petro and Pieters (2004)
-            print(bsed_depths.shape) # n x 608 x 608
-            n = bsed_depths.shape[-1]
+            curr_df = self.df[crater_flag]
+            ej_temp = ejecta_temp(self.df[crater_flag], self.cfg) # n
+            bsed_depths = self.ej_thick_grid[crater_flag,...] * mixing_ratio # Petro and Pieters (2004)
+            # print(bsed_depths.shape) # n x 608 x 608
+            p = bsed_depths.shape[-1] # 608
             
             # interpolate melt fraction based on temperature and mixing ratio
-            melt_frac = np.zeros_like(mixing_ratio)
+            # these are sorted based on age descending so we can apply in order
             for i in range(np.sum(crater_flag)):
                 curr_mix_r = mixing_ratio[i,...]
                 curr_temp = ej_temp[i]
-                inputs = np.dstack((np.ones_like(curr_mix_r) * curr_temp), curr_mix_r).reshape((n*n,2))
-                print(inputs.shape)
-                melt_frac[i,...] = gp_predict(self.melt_frac_gp, self.lik, inputs)
+                inputs = np.dstack((np.ones_like(curr_mix_r) * curr_temp, curr_mix_r)).reshape((p*p,2))
+                # print(inputs.shape)
+                out_mean, out_var = gp_predict(self.melt_frac_gp, self.lik, inputs, batch_size=1000, gpu=True)
+                melt_frac = out_mean.reshape((p,p))
             
-            # Scale by fraction lost from column (default 100%)
-            melt_frac *= self.cfg.ballistic_sed_frac_lost
+                # Scale by fraction lost from column (default 100%)
+                melt_frac *= self.cfg.ballistic_sed_frac_lost
 
-        else:
-            bsed_depths = np.zeros_like(self.psr)
-            melt_frac = np.zeros_like(self.psr)
-
-        # use in gardening the ice column
-        self.ice_col = self.garden_ice_d(t-1, self.bsed_depth[t,i], self.bsed_frac[t,i])
+                # garden the ice column via ballistic sedimentation
+                # this updates self.ice_col_grid in place
+                self.garden_ice_d(t, bsed_depths[i,...], melt_frac)
 
 
     # gardening function applied to all ice column pixels based on provided depth and fraction
-    def garden_ice_d(self, t, d):
+    # TODO: do we need to alternate ice and ejecta layers for this? can it be done simultaneously?
+    def garden_ice_d(self, t, depth, eff=1):
 
         # if only one depth value provided, use it everywhere
-        if len(d) == 1:
-            d = np.ones_like(self.psr) * d
+        if isinstance(depth, np.ndarray) == False:
+            depth = np.ones_like(self.psr) * depth # 608 x 608
+
+        # same with efficiency
+        if isinstance(eff, np.ndarray) == False:
+            eff = np.ones_like(self.psr) * eff # 608 x 608
         
-
-
         # Travese ice and ejecta column from t down, removing ice, skipping ejecta
         # Loop until we hit the bottom or have gone down depth meters
         # - If ejecta[t] > depth, no ice is removed.
         # Double i so i//2 is current index to garden (odd: ejecta, even: ice)
-        i = (2 * t) + 1
-        d = 0  # current depth
-        while i >= 0 and d < depth:  # and < 2 * len(ice_column):
+        t_ind = int(np.argwhere(self.time_arr == t))
+        i = (2 * t_ind) + 1
+        d = np.zeros_like(depth)  # current depth
+        needs_gardening = (d < depth)
+        while i >= 0 and np.any(needs_gardening):  # and < 2 * len(ice_column):
             if i % 2:
                 # Odd i (ejecta): do nothing, add ejecta layer to depth, d
-                d += ejecta_column[i // 2]
+                d += self.ej_col_grid[i // 2,...]
             else:
                 # Even i (ice): remove ice*eff from layer
-                removed = ice_column[i // 2] * eff
+                removed = self.ice_col_grid[i // 2, ...] * eff * needs_gardening
 
                 # Removing more ice than depth, only remove enough to reach depth
                 if (d + removed) > depth:
                     removed = depth - d
-                ice_column[i // 2] -= removed
-                d += ice_column[i // 2]  # Count all ice in layer towards depth
+                self.ice_col_grid[i // 2, ...] -= removed
+                d += self.ice_col_grid[i // 2,...]  # Count all ice in layer towards depth
+            
+            # increment counter and update flag for which pixels are done being gardened
             i -= 1
-        return ice_column
+            needs_gardening = (d < depth)
 
 
     # alternate ice overturn function from Cannon
-    def erode_ice_cannon(self):
+    # TODO: transfer and update function
+    def erode_ice_cannon(self, t, erosion_depth=0.1, ej_shield=0.4):
         pass
 
     
     # overturn ice for a given time step t and overturn depth d
     def overturn_ice(self, t, d):
-        # self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
         if self.cfg.impact_gardening_costello:
             self.garden_ice_d(t, d)
         else:
-            self.erode_ice_cannon()
+            self.erode_ice_cannon(t, erosion_depth=d)
 
 
 # main entrypoint function

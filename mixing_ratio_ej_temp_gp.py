@@ -10,6 +10,12 @@ import matplotlib.pyplot as plt
 import gpytorch
 import torch
 
+from moonpies import config
+from moonpies.utils.utils import get_grid_arrays
+from moonpies.utils.load_data import read_crater_list, read_basin_list
+from moonpies.utils.save_output import get_gc_dist_grid
+from moonpies.processes.ballistic import get_mixing_ratio_oberbeck, ejecta_temp
+
 
 # GP class for exact estimation
 class GP(gpytorch.models.ExactGP):
@@ -79,6 +85,7 @@ def plot_gp(xx, yy, zz, gp_mod, gp_lik, nx, ny):
 
     # predict from the gp over the training set
     train_x = torch.Tensor(np.vstack((xx, yy)).T)
+    # print(train_x.shape) # 3120 x 2 --> should be fine predicting over 1000 x 2 inputs?
     with torch.no_grad():
         zz_pred = gp_lik(gp_mod(train_x))
     zz_mean = zz_pred.mean.numpy()
@@ -108,6 +115,77 @@ def plot_gp(xx, yy, zz, gp_mod, gp_lik, nx, ny):
     # plt.show()
     plt.savefig('/home/margareh/moonpies/moonpies/data/gp_preds.png', dpi=100, bbox_inches='tight')
     plt.close()
+
+
+def load_pred_data(cfg):
+
+    grdy, grdx = get_grid_arrays(cfg)
+
+    df_craters = read_crater_list(cfg)
+    df_craters["isbasin"] = False
+    df_basins = read_basin_list(cfg)
+    df_basins["isbasin"] = True
+    df = pd.concat([df_craters, df_basins])
+
+    dists = get_gc_dist_grid(df, grdx, grdy, cfg, mask=True)
+    mixing_ratio = get_mixing_ratio_oberbeck(dists, cfg)
+    ej_temp = ejecta_temp(df, cfg)
+
+    return mixing_ratio, ej_temp
+
+
+# predict over new inputs
+def predict_gp(gp_mod, gp_lik, mixing_ratio, ej_temp, gpu=False, batch_size=None):
+
+    # loop through craters and predict for each
+    # print(mixing_ratio.shape) # 51 x 608 x 608
+    n = mixing_ratio.shape[-1]
+    c = mixing_ratio.shape[0]
+    out_all = np.zeros((c,n*n))
+    for i in range(c):
+        print("Crater %d / %d" % (i+1, c))
+
+        # limit to current crater
+        ej_temp_c = ej_temp[i]
+        mix_r_c = mixing_ratio[i,...]
+        pred_x = np.dstack((np.ones_like(mix_r_c) * ej_temp_c, mix_r_c)).reshape((n*n,2))
+        pred_x = torch.from_numpy(pred_x)
+        # print(pred_x.shape) # 369664 x 2
+
+        if gpu:
+            gp_mod = gp_mod.cuda()
+            gp_lik = gp_lik.cuda()
+            pred_x = pred_x.cuda()
+
+        # make sure models are in eval mode
+        gp_mod.eval()
+        gp_lik.eval()
+
+        batch_size = n*n if batch_size is None else batch_size
+        num_batches = int(np.ceil(n*n / batch_size))
+        # print(batch_size)
+        # print(num_batches)
+        for b in range(num_batches):
+            print("Batch %d / %d" % (b+1, num_batches))
+
+            # further limit the data
+            b_start = b*batch_size
+            b_end = (b+1)*batch_size if (b+1)*batch_size <= n*n else n*n
+            pred_x_b = pred_x[b_start:b_end,:]
+
+            # predict
+            with torch.no_grad(), gpytorch.settings.fast_pred_var():
+                out = gp_lik(gp_mod(pred_x_b))
+
+            out_mean = out.mean
+            if gpu:
+                out_mean = out_mean.cpu()
+            out_all[i, b_start:b_end] = out_mean.numpy()
+        
+    melt_frac = out_all.reshape((c,n,n))
+
+    # save the output
+    np.savez('/home/margareh/moonpies/data/pred_melt_frac_gp.npz', melt_frac=melt_frac)
 
 
 
@@ -141,4 +219,9 @@ if __name__ == "__main__":
 
     # plot some things
     plot_gp(xx, yy, zz, gp_mod, gp_lik, nx, ny)
+
+    # now pre-compute output for all times and data points for the model
+    cfg = config.Cfg()
+    mixing_ratio, ej_temp = load_pred_data(cfg)
+    predict_gp(gp_mod, gp_lik, mixing_ratio, ej_temp, gpu=True, batch_size=1000)
 
