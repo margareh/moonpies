@@ -179,50 +179,26 @@ class MoonPIES():
     def update(self, t, overturn_d):
         
         # Ejecta thickness updated
-        print("Deliver ejecta")
+        vprint(self.cfg, "Deliver ejecta")
         self.get_ejecta_thickness_t(t)
 
         # Ballistic sed gardens column before any ice gain
         # TODO: update using new bsed depth and fraction calcs
-        print("Ballistic sedimentation")
+        vprint(self.cfg, "Ballistic sedimentation")
         self.bsed_garden_ice(t)
-        # print(self.ice_col_grid.shape)
-        # print(self.ej_col_grid.shape)
 
         # Ice "gained" by column
         # this updates self.ice_cols directly
-        print("Deliver ice")
+        vprint(self.cfg, "Deliver ice")
         self.deliver_ice(t)
-        # print(self.ice_col_grid.shape)
-        # print(self.ej_col_grid.shape)
 
         # Ice gardened at end of timestep, i.e. after ice gain
-        print("Overturn ice")
+        vprint(self.cfg, "Overturn ice")
         self.overturn_ice(t, overturn_d)
-        # print(self.ice_col_grid.shape)
-        # print(self.ej_col_grid.shape)
 
         # Compute depth and fraction
-        print("Compute depth and fraction of ice")
+        vprint(self.cfg, "Compute depth and fraction of ice")
         self.get_depth_frac()
-        # print(self.depth.shape)
-        # print(self.frac.shape)
-
-        # below is old code
-        # for i, coldtrap in enumerate(self.cfg.coldtrap_names):
-
-        #     self.ice_col, ej_col, _ = self.strat_cols[coldtrap]
-
-        #     # Ballistic sed gardens column before any ice gain (timestep t-1)
-        #     self.ice_col = garden_ice_column(self.ice_col, ej_col, t-cfg.timestep, self.bsed_depth[t,i], self.bsed_frac[t,i])
-
-        #     # Ice "gained" by column
-        #     self.deliver_ice(t)
-
-        #     # Ice gardened at end of timestep, i.e. after ice gain (timestep t)
-        #     self.ice_col = remove_ice_overturn(self.ice_col, ej_col, t, overturn_d, self.cfg)
-
-        #     self.strat_cols[coldtrap][0] = self.ice_col  # Redundant (updated in place)
 
 
     # run through all time steps
@@ -232,8 +208,8 @@ class MoonPIES():
         # Loop through all timesteps
         t = self.cfg.timestart - self.cfg.timestep # start with second timestep
         i = 0
-        # while t > cfg.timeend: # ACTUAL CODE
-        while t > self.cfg.timestart - 2*self.cfg.timestep: # to run it once for testing
+        while t > self.cfg.timeend:
+            print("On time step %d" % (int(t)))
             self.update(t, self.overturn[i])
             t -= self.cfg.timestep
             i += 1
@@ -319,9 +295,12 @@ class MoonPIES():
     # compute the ejecta thickness over spatial grid for a given time t
     def get_ejecta_thickness_t(self, t):
         
+        # make sure time is same data type because otherwise functions below won't work
+        if isinstance(t, np.ndarray) == False:
+            t = np.array([t]).astype(self.cfg.dtype)
         ej_ages = self.df.age.values
         ej_formed = self.ej_thick_grid[(ej_ages <= t), ...]
-        t_ind = np.argwhere(self.time_arr == t)
+        t_ind = np.argwhere(self.time_arr.astype(np.int64) == int(t))
         self.ej_col_grid[t_ind,...] = np.sum(ej_formed, axis=0)
 
 
@@ -368,8 +347,9 @@ class MoonPIES():
             ice_polar = np.ones_like(self.psr) * ice_polar
         
         # TODO: this is total per cold trap, currently assigning it to the same point in each CT
-        # need to adjust so we aren't over-representing amount of ice
-        t_ind = int(np.argwhere(self.time_arr == t))
+        # need to adjust so we aren't over-representing amount of ice)
+        t_ind = np.argwhere(self.time_arr.astype(np.int64) == int(t))
+        t_ind = int(t_ind)
         self.ice_col_grid[t_ind,...] = ice_polar + ice_volcanic
         # print(self.ice_col_grid.shape) # 608 x 608
 
@@ -436,6 +416,10 @@ class MoonPIES():
     # TODO: do we need to alternate ice and ejecta layers for this? can it be done simultaneously?
     def garden_ice_d(self, t, depth, eff=1):
 
+        # make sure time is same data type because otherwise functions below won't work
+        if isinstance(t, np.ndarray) == False:
+            t = np.array([t]).astype(self.cfg.dtype)
+
         # if only one depth value provided, use it everywhere
         if isinstance(depth, np.ndarray) == False:
             depth = np.ones_like(self.psr) * depth # 608 x 608
@@ -448,7 +432,8 @@ class MoonPIES():
         # Loop until we hit the bottom or have gone down depth meters
         # - If ejecta[t] > depth, no ice is removed.
         # Double i so i//2 is current index to garden (odd: ejecta, even: ice)
-        t_ind = int(np.argwhere(self.time_arr == t))
+        curr_time = np.argwhere(self.time_arr.astype(np.int64) == int(t))
+        t_ind = int(curr_time)
         i = (2 * t_ind) + 1
         d = np.zeros_like(depth)  # current depth
         needs_gardening = (d < depth)
@@ -461,8 +446,8 @@ class MoonPIES():
                 removed = self.ice_col_grid[i // 2, ...] * eff * needs_gardening
 
                 # Removing more ice than depth, only remove enough to reach depth
-                if (d + removed) > depth:
-                    removed = depth - d
+                too_much = ((d + removed) > 0)
+                removed[too_much] = depth[too_much] - d[too_much]
                 self.ice_col_grid[i // 2, ...] -= removed
                 d += self.ice_col_grid[i // 2,...]  # Count all ice in layer towards depth
             
