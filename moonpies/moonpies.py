@@ -211,48 +211,64 @@ class MoonPIES():
         while t > self.cfg.timeend:
             print("On time step %d" % (int(t)))
             self.update(t, self.overturn[i])
+            
+            # save output every nth timestep
+            if i % self.cfg.save_every_n == 0:
+                self.save_output(t)
+            
+            # increment counter and timestep
             t -= self.cfg.timestep
             i += 1
     
 
     # save the output
-    def save_output(self, suffix=None):
-        self.show(suffix=suffix)
-        return format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
+    def save_output(self, t=None):
+        if t is not None:
+            outpath = os.path.join(self.cfg.out_path, t)
+        else:
+            outpath = copy.copy(self.cfg.out_path)
+        if os.path.exists(outpath) == False:
+            os.makedirs(outpath)
+        self.show(out=outpath)
+        # format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
+        np.savez(os.path.join(outpath, 'data.npz'),
+                 ice_depth=self.depth,
+                 ice_frac=self.frac,
+                 ice_col_grid=self.ice_col_grid,
+                 ej_col_grid=self.ej_col_grid,
+                 time_arr=self.time_arr)
 
 
     # plot some helpful things
-    def show(self, suffix=None):
+    def show(self, out=None):
         
-        if os.path.exists(self.cfg.out_path) == False:
-            os.makedirs(self.cfg.out_path)
+        if out is not None and os.path.exists(out) == False:
+            os.makedirs(out)
+        else:
+            if os.path.exists(self.cfg.out_path) == False:
+                os.makedirs(self.cfg.out_path)
+            out = copy.copy(self.cfg.out_path)
 
         # figure names
-        if suffix is not None:
-            fig1_name = 'tif_files_'+suffix+'.png'
-            fig2_name = 'craters_and_psrs_'+suffix+'.png'
-            fig3_name = 'ice_and_ejecta_'+suffix+'.png'
-            fig4_name = 'ice_depth_and_fraction_'+suffix+'.png'
-        else:
-            fig1_name = 'tif_files.png'
-            fig2_name = 'craters_and_psrs.png'
-            fig3_name = 'ice_and_ejecta.png'
-            fig4_name = 'ice_depth_and_fraction.png'
+        # fig1_name = 'tif_files.png'
+        fig2_name = 'craters_and_psrs.png'
+        fig3_name = 'ice_and_ejecta.png'
+        fig4_name = 'ice_depth_and_fraction.png'
 
         # lrbt
         # from tif file (pre-downsample): -304000, 304000, -304000, 304000
         map_ext = [-304000, 304000, -304000, 304000]
 
-        # display the psr and slope data (to see what it looks like)
-        fig, ax = plt.subplots(1, 2, figsize=(20, 10))
-        ax[0].imshow(self.psr, cmap='binary', extent=map_ext)
-        ax[1].imshow(self.slope, cmap='coolwarm', extent=map_ext)
-        # ax[0].axis('off')that cause ballisti
-        # ax[1].axis('off')
-        ax[0].set_title('PSRs')
-        ax[1].set_title('Slope')
-        plt.savefig(os.path.join(self.cfg.out_path, fig1_name), bbox_inches='tight', dpi=100)
-        plt.close()
+        # # display the psr and slope data (to see what it looks like)
+        # fig, ax = plt.subplots(1, 2, figsize=(20, 10))
+        # ax[0].imshow(self.psr, cmap='binary', extent=map_ext)
+        # ax[1].imshow(self.slope, cmap='coolwarm', extent=map_ext)
+        # # ax[0].axis('off')that cause ballisti
+        # # ax[1].axis('off')
+        # ax[0].set_title('PSRs')
+        # ax[1].set_title('Slope')
+        # plt.savefig(os.path.join(out, 'figs', fig1_name), bbox_inches='tight', dpi=100)
+        # plt.close()
 
         # crater mask over PSRs
         crater_mask_all = np.any(self.crater_mask[self.df['isbasin']==False], axis=0)
@@ -264,7 +280,7 @@ class MoonPIES():
         ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
         ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
         # ax.axis('off')
-        plt.savefig(os.path.join(self.cfg.out_path, fig2_name), bbox_inches='tight', dpi=100)
+        plt.savefig(os.path.join(out, fig2_name), bbox_inches='tight', dpi=100)
         plt.close()
 
         # ice column
@@ -276,7 +292,7 @@ class MoonPIES():
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
-        plt.savefig(os.path.join(self.cfg.out_path, fig3_name), dpi=100, bbox_inches='tight')
+        plt.savefig(os.path.join(out, fig3_name), dpi=100, bbox_inches='tight')
         plt.close()
 
         # ice depth and fraction
@@ -288,7 +304,7 @@ class MoonPIES():
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
-        plt.savefig(os.path.join(self.cfg.out_path, fig4_name), dpi=100, bbox_inches='tight')
+        plt.savefig(os.path.join(out, fig4_name), dpi=100, bbox_inches='tight')
         plt.close()
 
 
@@ -388,7 +404,7 @@ class MoonPIES():
             # compute ballistic sedimentation depth and fraction
             dists_t = self.dists_masked[crater_flag,...] # should be n x 608 x 608 with n = sum(crater_flag)
             mixing_ratio = get_mixing_ratio_oberbeck(dists_t, self.cfg) # n x 608 x 608
-            curr_df = self.df[crater_flag]
+            # curr_df = self.df[crater_flag]
             ej_temp = ejecta_temp(self.df[crater_flag], self.cfg) # n
             bsed_depths = self.ej_thick_grid[crater_flag,...] * mixing_ratio # Petro and Pieters (2004)
             # print(bsed_depths.shape) # n x 608 x 608
@@ -401,7 +417,7 @@ class MoonPIES():
                 curr_temp = ej_temp[i]
                 inputs = np.dstack((np.ones_like(curr_mix_r) * curr_temp, curr_mix_r)).reshape((p*p,2))
                 # print(inputs.shape)
-                out_mean, out_var = gp_predict(self.melt_frac_gp, self.lik, inputs, batch_size=1000, gpu=True)
+                out_mean, _ = gp_predict(self.melt_frac_gp, self.lik, inputs, batch_size=1000, gpu=True)
                 melt_frac = out_mean.reshape((p,p))
             
                 # Scale by fraction lost from column (default 100%)
@@ -474,8 +490,8 @@ class MoonPIES():
 def main(cfg):
     mp = MoonPIES(cfg)
     mp.run()
-    mp.show()
-    # return mp.save_output()
+    # mp.show()
+    mp.save_output()
 
 
 if __name__ == "__main__":
