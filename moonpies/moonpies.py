@@ -245,12 +245,11 @@ class MoonPIES():
     # plot some helpful things
     def show(self, out=None):
         
-        if out is not None and os.path.exists(out) == False:
-            os.makedirs(out)
-        else:
+        if out is None:
             if os.path.exists(self.cfg.out_path) == False:
                 os.makedirs(self.cfg.out_path)
-            out = copy.copy(self.cfg.out_path)
+        elif os.path.exists(out) == False:
+            os.makedirs(out)
 
         # figure names
         # fig1_name = 'tif_files.png'
