@@ -103,11 +103,6 @@ class MoonPIES():
             self.crater_mask[cr_id] = (self.crater_dist_grid[cr_id] <= row['rad'])
             cr_id += 1
 
-        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
-        # print(self.df.iloc[self.coldtrap_inds])
-        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr, axis=0)
-        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
-
         # Flag coldtraps and label coldtrap areas
         self.coldtrap_flag = np.zeros((len(self.df)))
         self.psr_area = np.zeros_like(self.psr)
@@ -120,6 +115,11 @@ class MoonPIES():
             cr_id += 1
         # print(self.coldtrap_flag.sum()) # 12
         # n_ct = len(self.cfg.coldtrap_names)
+
+        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
+        # print(self.df.iloc[self.coldtrap_inds])
+        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr, axis=0)
+        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
