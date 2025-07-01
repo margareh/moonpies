@@ -227,7 +227,7 @@ class MoonPIES():
     # save the output
     def save_output(self, t=None):
         if t is not None:
-            outpath = os.path.join(self.cfg.out_path, t)
+            outpath = os.path.join(self.cfg.out_path, str(t))
         else:
             outpath = copy.copy(self.cfg.out_path)
         if os.path.exists(outpath) == False:
