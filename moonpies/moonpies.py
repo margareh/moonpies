@@ -103,20 +103,23 @@ class MoonPIES():
             self.crater_mask[cr_id] = (self.crater_dist_grid[cr_id] <= row['rad'])
             cr_id += 1
 
-        # Pre-compute distances to each coldtrap and masks for each coldtrap
-        self.coldtrap_flag = np.zeros((len(self.df)))
-        cr_id = 0
-        for i, row in self.df.iterrows():
-            if np.isin(row.cname, self.cfg.coldtrap_names):
-                self.coldtrap_flag[cr_id] = 1
-            cr_id += 1
-        # print(self.coldtrap_flag.sum()) # 12
-        # n_ct = len(self.cfg.coldtrap_names)
-
         self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
         # print(self.df.iloc[self.coldtrap_inds])
         self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr, axis=0)
         # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
+
+        # Flag coldtraps and label coldtrap areas
+        self.coldtrap_flag = np.zeros((len(self.df)))
+        self.psr_area = np.zeros_like(self.psr)
+        cr_id = 0
+        for i, row in self.df.iterrows():
+            if np.isin(row.cname, self.cfg.coldtrap_names):
+                self.coldtrap_flag[cr_id] = 1
+                # TODO: how does this work if PSRs overlap? do they overlap?
+                self.psr_area += row['psr_area'] * self.crater_mask[cr_id]
+            cr_id += 1
+        # print(self.coldtrap_flag.sum()) # 12
+        # n_ct = len(self.cfg.coldtrap_names)
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
@@ -362,11 +365,12 @@ class MoonPIES():
         else:
             ice_polar = np.ones_like(self.psr) * ice_polar
         
-        # TODO: this is total per cold trap, currently assigning it to the same point in each CT
-        # need to adjust so we aren't over-representing amount of ice)
         t_ind = np.argwhere(self.time_arr.astype(np.int64) == int(t))
         t_ind = int(t_ind)
-        self.ice_col_grid[t_ind,...] = ice_polar + ice_volcanic
+        
+        # adjust to be amount per pixel instead of total amount
+        ice_tot = (ice_polar + ice_volcanic) * (self.cfg.grdstep**2 / self.psr_area)
+        self.ice_col_grid[t_ind,...] = ice_tot
         # print(self.ice_col_grid.shape) # 608 x 608
 
 
