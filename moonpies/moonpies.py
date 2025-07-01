@@ -369,7 +369,9 @@ class MoonPIES():
         t_ind = int(t_ind)
         
         # adjust to be amount per pixel instead of total amount
-        ice_tot = (ice_polar + ice_volcanic) * (self.cfg.grdstep**2 / self.psr_area)
+        ice_tot = np.zeros_like(ice_polar)
+        psr_flag = (self.psr_area > 0)
+        ice_tot[psr_flag] = (ice_polar[psr_flag] + ice_volcanic[psr_flag]) * (self.cfg.grdstep**2 / self.psr_area[psr_flag])
         self.ice_col_grid[t_ind,...] = ice_tot
         # print(self.ice_col_grid.shape) # 608 x 608
 
