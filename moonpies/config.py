@@ -77,7 +77,7 @@ class Cfg:
     write_npy: bool = False  # Write large arrays to files - slow! (age_grid, ej_thickness)
     strat_after_age: bool = True  # Stratigraphy column outputs start at coldtrap age (removes pre-coldtrap layering)
     plot: bool = False  # Save strat column plots - slow!
-    save_every_n: int = 10 # save output every nth timestep
+    save_every_n: int = 1 # save output every nth timestep
     
     # Setup Cannon vs MoonPIES config mode and lunar pole
     mode: str = 'moonpies'  # ['moonpies', 'cannon']
@@ -102,7 +102,7 @@ class Cfg:
 
     # Paths set in post_init if not given (attr name must end with "_path")
     data_path: str = ''  # path to import data
-    out_path: str = ''  # path to save outputs
+    out_path: str = '/media/ssd/ThesisWork/Volatiles/SimData'  # path to save outputs
     figs_path: str = ''  # path to save figures
     spatial_data_path: str = '/media/ssd/ThesisWork/Volatiles/SouthPoleData' # path to spatial datasets
     
@@ -127,7 +127,7 @@ class Cfg:
     icecol_npy_out: str = 'ice_columns_grid.npy'
 
     # Grid and time size and resolution
-    dtype = np.float32  # np.float64 (32 should be good for most purposes)
+    dtype = np.float64  # np.float64 (32 should be good for most purposes)
     rtol = 1e-6  # Rounding tolerance for floating point comparisons (mainly for rounding error with float time_arr)
     grdxsize: int = 304e3  # [m] originally 400e3
     grdysize: int = 304e3  # [m] originally 400e3

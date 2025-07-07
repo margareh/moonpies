@@ -17,11 +17,15 @@ def load_tifs(cfg, cache=False):
 
     # check if we have datasets cached
     if cache and os.path.exists(os.path.join(cfg.data_path, 'tif_cache.npz')):
+        print("Using cache")
+        print(cfg.data_path)
         data = np.load(os.path.join(cfg.data_path, 'tif_cache.npz'))
-        psr = data['psr']
+        psr_out = data['psr']
         slope = data['slope']
 
     else:
+
+        print("Loading dataset")
 
         # print(cfg.psr_spat)
         psr_data = rs.open(cfg.psr_spat)
@@ -29,7 +33,7 @@ def load_tifs(cfg, cache=False):
 
         # print(cfg.slope_spat)
         slope_data = rs.open(cfg.slope_spat)
-        slope = slope_data.read(1)
+        slope = slope_data.read(1).astype(np.int32)
         
         # compute downsample ratio
         downsample = int(cfg.grdstep / cfg.tif_mpp)
@@ -41,10 +45,15 @@ def load_tifs(cfg, cache=False):
             psr = psr.reshape((psr_new_n, downsample, psr_new_n, downsample)).sum(axis=1).sum(axis=2)
             slope = slope.reshape((slope_new_n, downsample, slope_new_n, downsample)).sum(axis=1).sum(axis=2)
 
-        # save datasets
-        np.savez(os.path.join(cfg.data_path, 'tif_cache.npz'), psr=psr, slope=slope)
+            # keep only those with all contributing pixels from PSRs
+            maxval = np.nanmax(psr)
+            psr /= maxval
+            psr_out = (psr == 1)
 
-    return psr, slope
+        # save datasets
+        np.savez(os.path.join(cfg.data_path, 'tif_cache.npz'), psr=psr_out, slope=slope)
+
+    return psr_out, slope
 
 
 def read_crater_list(cfg):
