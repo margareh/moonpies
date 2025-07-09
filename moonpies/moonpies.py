@@ -207,9 +207,9 @@ class MoonPIES():
         vprint(self.cfg, "Deliver ejecta")
         self.deliver_ejecta()
 
-        # # Ballistic sed gardens column before any ice gain
-        # vprint(self.cfg, "Ballistic sedimentation")
-        # self.bsed_garden_ice()
+        # Ballistic sed gardens column before any ice gain
+        vprint(self.cfg, "Ballistic sedimentation")
+        self.bsed_garden_ice(first_ejecta=True)
 
         # Ice "gained" by column
         # this updates self.ice_cols directly
@@ -218,7 +218,7 @@ class MoonPIES():
 
         # Ice gardened at end of timestep, i.e. after ice gain
         vprint(self.cfg, "Overturn ice")
-        self.overturn_ice(overturn_d)
+        self.overturn_ice(overturn_d, first_ejecta=False)
 
         # Compute depth and fraction
         vprint(self.cfg, "Compute depth and fraction of ice")
@@ -445,7 +445,7 @@ class MoonPIES():
 
 
     # garden ice with ballistic sedimentation for a given time step t
-    def bsed_garden_ice(self):
+    def bsed_garden_ice(self, first_ejecta=True):
         
         # flag which craters were created during this time period
         ej_ages = self.df.age.values
@@ -483,12 +483,12 @@ class MoonPIES():
 
                 # garden the ice column via ballistic sedimentation
                 # this updates self.ice_col_grid in place
-                self.garden_ice_d(bsed_depths[i,...], melt_frac)
+                self.garden_ice_d(bsed_depths[i,...], melt_frac, first_ejecta)
 
 
     # gardening function applied to all ice column pixels based on provided depth and fraction
     # TODO: do we need to alternate ice and ejecta layers for this? can it be done simultaneously?
-    def garden_ice_d(self, depth, eff=1):
+    def garden_ice_d(self, depth, eff=1, first_ejecta=False):
 
         # if only one depth value provided, use it everywhere
         if isinstance(depth, np.ndarray) == False:
@@ -502,13 +502,15 @@ class MoonPIES():
         # this assumes layers with ejecta over ice
         d = np.zeros_like(depth)
         needs_gardening = (d < depth)
-        i = 0
-        while i <= self.t_ind and np.any(needs_gardening):
-            
-            # add ejecta to depth that's been gardened
-            # also need to update flag here for whether things need gardening
-            d += self.ej_col_grid[i,...]
-            needs_gardening = (d < depth)
+        i = copy.copy(self.t_ind)
+        while i >= 0 and np.any(needs_gardening):
+
+            # if the first layer is ejecta, need to account for that
+            if first_ejecta:
+                # add ejecta to depth that's been gardened
+                # also need to update flag for gardening here
+                d += self.ej_col_grid[i,...]
+                needs_gardening = (d < depth)
 
             # remove ice with amount capped after depth has been reached
             removed = self.ice_col_grid[i,...] * eff
@@ -525,9 +527,9 @@ class MoonPIES():
             # add remaining ice to depth
             d += self.ice_col_grid[i,...]
 
-        # increment counter and recompute flag for needing gardening
-        i += 1
-        needs_gardening = (d < depth)
+            # increment counter and recompute flag for needing gardening
+            i -= 1
+            needs_gardening = (d < depth)
 
 
     # alternate ice overturn function from Cannon
@@ -537,9 +539,9 @@ class MoonPIES():
 
     
     # overturn ice for a given time step t and overturn depth d
-    def overturn_ice(self, d):
+    def overturn_ice(self, d, first_ejecta=False):
         if self.cfg.impact_gardening_costello:
-            self.garden_ice_d(d)
+            self.garden_ice_d(d, first_ejecta)
         else:
             self.erode_ice_cannon(erosion_depth=d)
 
