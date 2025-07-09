@@ -103,28 +103,27 @@ class MoonPIES():
 
         # Flag coldtraps and label coldtrap areas
         n_ct = len(self.cfg.coldtrap_names)
-        self.coldtrap_flag = np.zeros((len(self.df)))
+        self.coldtrap_flag = np.full((len(self.df)), False)
         self.psr_area = np.zeros((n_ct+1, self.psr.shape[0], self.psr.shape[1]))
         cr_id = 0
         ct_id = 0
         for i, row in self.df.iterrows():
             if np.isin(row.cname, self.cfg.coldtrap_names):
-                self.coldtrap_flag[cr_id] = 1
+                self.coldtrap_flag[cr_id] = True
                 self.psr_area[ct_id,...] = row['psr_area'] * self.crater_mask[cr_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
                 ct_id += 1
             cr_id += 1
         # print(self.coldtrap_flag.sum()) # 12
 
-        # add in area that produces uniform distribution for remaining PSRs
-        psr_no_crater = (self.psr == 1) * ~np.any(self.crater_mask, axis=0)
-
-        psr_px = np.sum(psr_no_crater)
-        self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
-
         self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
         # print(self.df.iloc[self.coldtrap_inds])
         self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr == 1, axis=0)
         # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
+
+        # add in area that produces uniform distribution for remaining PSRs
+        psr_no_crater = (self.psr == 1) * ~np.any(self.coldtrap_mask, axis=0)
+        psr_px = np.sum(psr_no_crater)
+        self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
@@ -137,6 +136,15 @@ class MoonPIES():
             cr_id += 1
         self.ej_thick_grid = get_ejecta_thickness(self.dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
+
+        # set up ballistic hop efficiency grid
+        # first add the values for cold traps
+        bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct, 1, 1))
+        bhops_ct = np.sum(bhops * self.coldtrap_mask, axis=0)
+
+        # now add values for remaining PSR regions based on constant value
+        psr_no_ct = self.psr & ~np.any(self.coldtrap_mask, axis=0)
+        self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
 
         # initial values based on start time of sim
         self.t = float(self.cfg.timestart)
@@ -200,19 +208,19 @@ class MoonPIES():
         vprint(self.cfg, "Deliver ejecta")
         self.deliver_ejecta()
 
-        # Ballistic sed gardens column before any ice gain
-        # TODO: update using new bsed depth and fraction calcs
-        vprint(self.cfg, "Ballistic sedimentation")
-        self.bsed_garden_ice()
+        # # Ballistic sed gardens column before any ice gain
+        # # TODO: update using new bsed depth and fraction calcs
+        # vprint(self.cfg, "Ballistic sedimentation")
+        # self.bsed_garden_ice()
 
         # Ice "gained" by column
         # this updates self.ice_cols directly
         vprint(self.cfg, "Deliver ice")
         self.deliver_ice()
 
-        # Ice gardened at end of timestep, i.e. after ice gain
-        vprint(self.cfg, "Overturn ice")
-        self.overturn_ice(overturn_d)
+        # # Ice gardened at end of timestep, i.e. after ice gain
+        # vprint(self.cfg, "Overturn ice")
+        # self.overturn_ice(overturn_d)
 
         # Compute depth and fraction
         vprint(self.cfg, "Compute depth and fraction of ice")
@@ -382,20 +390,20 @@ class MoonPIES():
             ice_polar += ice_volcanic
             ice_volcanic *= 0
 
+        # print(ice_volcanic.shape) # one value
+
         # Rescale by ballistic hop efficiency per coldtrap
         # TODO: should bhop efficiency be applied to full PSR? or should it be distributed 
         # throughout the PSR based on area or something like that so the total ice over the 
         # PSR represents the efficiency? (i.e. is it a ratio or is it an overall amount)
         # currently assuming we can use the efficiency at all locations in the PSR as is
-        n_ct = len(self.cfg.coldtrap_names)
         if self.cfg.ballistic_hop_moores:
-            bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct,1,1))
-            # print(bhops.shape) # 1 x 12
-            bhops_grid = np.sum(bhops * self.coldtrap_mask, axis=0) # 608 x 608
-            bhops_grid /= self.cfg.ballistic_hop_effcy
-            ice_polar = bhops_grid * ice_polar
+            # need to remove the constant efficiency factor that was previously applied to ice
+            ice_polar = self.bhops_grid * (ice_polar / self.cfg.ballistic_hop_effcy)
         else:
             ice_polar = np.ones_like(self.psr) * ice_polar
+
+        # print(ice_polar.shape) # 608 x 608
 
         # filter to current set of psrs
         # TODO: is summing correct if there are overlapping sections? no --> less ice because area is in denominator
@@ -404,15 +412,17 @@ class MoonPIES():
         psr_area = np.sum(self.psr_area[:self.t_ind_ct,...], axis=0) + self.psr_area[-1,...]
         no_psr = psr_area < 0.0001
 
-        # print(np.min(psr_area))
-        # print(np.max(psr_area))
-        # print(np.min(psr_area[~no_psr]))
-        # print(np.max(psr_area[~no_psr]))
+        # fig, ax = plt.subplots(1,2)
+        # ax[0].imshow(psr_area)
+        # ax[1].imshow(no_psr)
+        # plt.show()
 
         # adjust to be amount per pixel instead of total amount
+        # want to set areas without specific ballistic hop efficiency to overall value
         ice_tot = ice_polar + ice_volcanic
         ice_tot[~no_psr] *= (self.cfg.grdstep**2 / psr_area[~no_psr])
         ice_tot[no_psr] = 0
+
         self.ice_col_grid[self.t_ind,...] = ice_tot
         # print(self.ice_col_grid.shape) # 608 x 608
 
