@@ -96,29 +96,27 @@ class MoonPIES():
         self.crater_mask = np.zeros_like(self.crater_dist_grid)
         # print(self.crater_mask.shape) # 51 x 608 x 608
 
+        self.coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         for i, row in self.df.iterrows():
             self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
+            if np.isin(row.cname, self.cfg.coldtrap_names):
+                self.coldtrap_flag[cr_id] = True
             cr_id += 1
+
+        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
+        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr == 1, axis=0)
+        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608        
 
         # Flag coldtraps and label coldtrap areas
         n_ct = len(self.cfg.coldtrap_names)
-        self.coldtrap_flag = np.full((len(self.df)), False)
+        
         self.psr_area = np.zeros((n_ct+1, self.psr.shape[0], self.psr.shape[1]))
-        cr_id = 0
         ct_id = 0
         for i, row in self.df.iterrows():
             if np.isin(row.cname, self.cfg.coldtrap_names):
-                self.coldtrap_flag[cr_id] = True
-                self.psr_area[ct_id,...] = row['psr_area'] * self.crater_mask[cr_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
+                self.psr_area[ct_id,...] = row['psr_area'] * self.coldtrap_mask[ct_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
                 ct_id += 1
-            cr_id += 1
-        # print(self.coldtrap_flag.sum()) # 12
-
-        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
-        # print(self.df.iloc[self.coldtrap_inds])
-        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr == 1, axis=0)
-        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
 
         # add in area that produces uniform distribution for remaining PSRs
         psr_no_crater = (self.psr == 1) * ~np.any(self.coldtrap_mask, axis=0)
@@ -209,7 +207,6 @@ class MoonPIES():
         self.deliver_ejecta()
 
         # # Ballistic sed gardens column before any ice gain
-        # # TODO: update using new bsed depth and fraction calcs
         # vprint(self.cfg, "Ballistic sedimentation")
         # self.bsed_garden_ice()
 
@@ -411,11 +408,6 @@ class MoonPIES():
         # PSR areas for craters + no-crater PSR areas
         psr_area = np.sum(self.psr_area[:self.t_ind_ct,...], axis=0) + self.psr_area[-1,...]
         no_psr = psr_area < 0.0001
-
-        # fig, ax = plt.subplots(1,2)
-        # ax[0].imshow(psr_area)
-        # ax[1].imshow(no_psr)
-        # plt.show()
 
         # adjust to be amount per pixel instead of total amount
         # want to set areas without specific ballistic hop efficiency to overall value
