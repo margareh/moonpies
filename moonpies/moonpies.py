@@ -17,6 +17,7 @@ Edited by Margaret Hansen, 5-15-2025
 
 import os
 import copy
+import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -215,9 +216,9 @@ class MoonPIES():
         vprint(self.cfg, "Deliver ice")
         self.deliver_ice()
 
-        # # Ice gardened at end of timestep, i.e. after ice gain
-        # vprint(self.cfg, "Overturn ice")
-        # self.overturn_ice(overturn_d)
+        # Ice gardened at end of timestep, i.e. after ice gain
+        vprint(self.cfg, "Overturn ice")
+        self.overturn_ice(overturn_d)
 
         # Compute depth and fraction
         vprint(self.cfg, "Compute depth and fraction of ice")
@@ -327,11 +328,15 @@ class MoonPIES():
         plt.close()
 
         # ice depth and fraction
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            log_frac = np.log(self.frac)
+        log_frac[np.isinf(log_frac)] = np.nan
         fig, ax = plt.subplots(1, 2, figsize=(20,10))
         im = ax[0].imshow(self.depth, cmap='Oranges', extent=map_ext)
-        im2 = ax[1].imshow(self.frac, cmap='Blues', extent=map_ext)
+        im2 = ax[1].imshow(log_frac, cmap='Blues', extent=map_ext)
         ax[0].set_title('Depth')
-        ax[1].set_title('Ice Fraction')
+        ax[1].set_title('Log Ice Fraction')
         fig.colorbar(im, ax=ax[0])
         fig.colorbar(im2, ax=ax[1])
 
@@ -458,6 +463,10 @@ class MoonPIES():
             bsed_depths = self.ej_thick_grid[crater_flag,...] * mixing_ratio # Petro and Pieters (2004)
             # print(bsed_depths.shape) # n x 608 x 608
             p = bsed_depths.shape[-1] # 608
+
+            # if there are nans for bsed_depth, replace with 0
+            # these occur inside craters
+            bsed_depths[np.isnan(bsed_depths)] = 0
             
             # interpolate melt fraction based on temperature and mixing ratio
             # these are sorted based on age descending so we can apply in order
@@ -488,31 +497,37 @@ class MoonPIES():
         # same with efficiency
         if isinstance(eff, np.ndarray) == False:
             eff = np.ones_like(self.psr) * eff # 608 x 608
-        
-        # Travese ice and ejecta column from t down, removing ice, skipping ejecta
-        # Loop until we hit the bottom or have gone down depth meters
-        # - If ejecta[t] > depth, no ice is removed.
-        # Double i so i//2 is current index to garden (odd: ejecta, even: ice)
-        i = (2 * self.t_ind) + 1
-        d = np.zeros_like(depth)  # current depth
-        needs_gardening = (d < depth)
-        while i >= 0 and np.any(needs_gardening):  # and < 2 * len(ice_column):
-            if i % 2:
-                # Odd i (ejecta): do nothing, add ejecta layer to depth, d
-                d += self.ej_col_grid[i // 2,...]
-            else:
-                # Even i (ice): remove ice*eff from layer
-                removed = self.ice_col_grid[i // 2, ...] * eff * needs_gardening
 
-                # Removing more ice than depth, only remove enough to reach depth
-                too_much = ((d + removed) > 0)
-                removed[too_much] = depth[too_much] - d[too_much]
-                self.ice_col_grid[i // 2, ...] -= removed
-                d += self.ice_col_grid[i // 2,...]  # Count all ice in layer towards depth
+        # remove ice with set efficiency to set depth
+        # this assumes layers with ejecta over ice
+        d = np.zeros_like(depth)
+        needs_gardening = (d < depth)
+        i = 0
+        while i <= self.t_ind and np.any(needs_gardening):
             
-            # increment counter and update flag for which pixels are done being gardened
-            i -= 1
+            # add ejecta to depth that's been gardened
+            # also need to update flag here for whether things need gardening
+            d += self.ej_col_grid[i,...]
             needs_gardening = (d < depth)
+
+            # remove ice with amount capped after depth has been reached
+            removed = self.ice_col_grid[i,...] * eff
+            too_large = ((d + removed) > depth)
+            removed[too_large] = depth[too_large] - d[too_large]
+
+            # fig, ax = plt.subplots(1,2)
+            # ax[0].imshow(removed)
+            # ax[1].imshow(removed * needs_gardening)
+            # plt.show()
+
+            self.ice_col_grid[i,...] -= removed * needs_gardening
+
+            # add remaining ice to depth
+            d += self.ice_col_grid[i,...]
+
+        # increment counter and recompute flag for needing gardening
+        i += 1
+        needs_gardening = (d < depth)
 
 
     # alternate ice overturn function from Cannon
