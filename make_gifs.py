@@ -39,7 +39,7 @@ def make_gifs(args):
             imgs_new = imgs
 
         # save the output
-        imageio.mimsave(os.path.join(args.path, i.replace('png', 'gif')), imgs_new, duration = 1, loop=0)
+        imageio.mimsave(os.path.join(args.path, i.replace('png', 'gif')), imgs_new, duration = 1, loop=0, palettesize=256)
 
 
 if __name__ == "__main__":
