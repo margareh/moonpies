@@ -78,6 +78,9 @@ class Cfg:
     strat_after_age: bool = True  # Stratigraphy column outputs start at coldtrap age (removes pre-coldtrap layering)
     plot: bool = False  # Save strat column plots - slow!
     save_every_n: int = 10 # save output every nth timestep
+    vmax_ice: float = 0.035 # maximum amount of ice for plot colorbar
+    vmax_ej: float = 2000.0 # maximum amount of ejecta for plot colorbar
+    vmin_log_ice: float = -14.0 # minimum log ice fraction for plot colorbar
     
     # Setup Cannon vs MoonPIES config mode and lunar pole
     mode: str = 'moonpies'  # ['moonpies', 'cannon']

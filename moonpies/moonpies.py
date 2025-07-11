@@ -326,8 +326,8 @@ class MoonPIES():
 
         # ice column
         fig, ax = plt.subplots(1, 2, figsize=(20,10))
-        im = ax[0].imshow(ice_col_all, cmap='Blues', extent=map_ext)
-        im2 = ax[1].imshow(ej_col_all, cmap='Oranges', extent=map_ext)
+        im = ax[0].imshow(ice_col_all, cmap='Blues', extent=map_ext, vmin=0, vmax=self.cfg.vmax_ice)
+        im2 = ax[1].imshow(ej_col_all, cmap='Oranges', extent=map_ext, vmin=0, vmax=self.cfg.vmax_ej)
         ax[0].set_title('Ice')
         ax[1].set_title('Ejecta')
         fig.colorbar(im, ax=ax[0])
@@ -342,8 +342,8 @@ class MoonPIES():
             log_frac = np.log(self.frac)
         log_frac[np.isinf(log_frac)] = np.nan
         fig, ax = plt.subplots(1, 2, figsize=(20,10))
-        im = ax[0].imshow(log_frac, cmap='Blues', extent=map_ext)
-        im2 = ax[1].imshow(self.depth, cmap='Oranges', extent=map_ext)
+        im = ax[0].imshow(log_frac, cmap='Blues', extent=map_ext, vmin=self.cfg.vmin_log_ice, vmax=0)
+        im2 = ax[1].imshow(self.depth, cmap='Oranges', extent=map_ext, vmin=0, vmax=self.cfg.vmax_ej)
         ax[0].set_title('Log Ice Fraction')
         ax[1].set_title('Depth')
         fig.colorbar(im, ax=ax[0])
