@@ -12,8 +12,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import rasterio as rs
 
-from moonpies.utils.utils import xy2latlon
-
+from moonpies.utils.utils import xy2latlon, latlon2xy
+from urllib.request import urlopen
 
 # load and display tif file
 def load_tif(args):
@@ -61,17 +61,15 @@ def load_tif(args):
     return data_mask, meta
 
 
+# query JPL Horizons to get range from surface point on moon to sun
+def query_range_data(args):
+    pass
+
+
 # load the ephemeris data
 def load_ephemeris_data(args):
 
     cols = ['timestamp', 'sp1', 'sp2', 'obs_lon', 'obs_lat', 'sun_lon', 'sun_lat']
-    # types = {'timestamp' : np.datetime64,
-    #          'sp1' : str,
-    #          'sp2' : str,
-    #          'obs_lon' : np.float32,
-    #          'obs_lat' : np.float32,
-    #          'sun_lon' : np.float32,
-    #          'sun_lat' : np.float32}
     eph_df = pd.read_csv(os.path.join(args.path, args.eph), header=None, names=cols, index_col=False, parse_dates=['timestamp'])
     eph_df.drop(columns=['sp1','sp2'], inplace=True)
     # print(eph_df) # 7671 x 5
@@ -79,8 +77,21 @@ def load_ephemeris_data(args):
 
 
 # compute the apparent elevation and direction of the sun for a given lunar latitude and longitude
-def compute_solar_elev(px_lat, px_lon, sun_lat, sun_lon):
-    pass
+def compute_solar_elev(px_lat, px_lon, sun_lat, sun_lon, rp=1737.4e3, dp=1):
+
+    # distance bewtween points in meters
+    x_px, y_px = latlon2xy(px_lat, px_lon)
+    x_sun, y_sun = latlon2xy(sun_lat, sun_lon)
+    v_dir = np.array([x_sun - x_px, y_sun - y_px])
+    d_c = np.sqrt(np.sum(v_dir**2)) # chordal distance
+
+    # elevation = use law of cosines like 3 times
+    cos_beta = 1 - (d_c**2) / (2*rp**2) # angle between points on lunar surface
+    d = np.sqrt((rp**2) + (dp**2) - 2*rp*dp*cos_beta) # distance between sun and pixel 
+    h = r - dp*cos_beta
+    theta = np.arcsin(h / d) # elevation in radians
+
+    return theta, v_dir
 
 
 # process tif file to produce illumination values
@@ -114,9 +125,18 @@ def process_data(data, meta, eph, args):
     
     illumin_pct = np.zeros((pixels.shape[0]))
     # compute illumination conditions for each point
-    # for p in pixels:
+    for p in pixels:
         
+        # query the JPL Horizons API for the range data for this point
+        uri = "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='g:"+coords+"@301'&OBJ_DATA='NO'&MAKE_EPHEM='YES'&EPHEM_TYPE='OBSERVER'&CENTER='500@10'&START_TIME='2004-01-01'&STOP_TIME='2024-12-31'&STEP_SIZE='1 DAYS'&REF_SYSTEM='ICRF'&CAL_FORMAT='CAL'&CAL_TYPE='G'&TIME_DIGITS='SECONDS'&CSV_FORMAT='YES'&QUANTITIES='19'"
+        uri = uri.replace(' ', '%20').replace('&', '%24').replace(',', '%2C').replace(':', '%3A').replace('=','%3D').replace('?','%3F').replace('@','%40')
+        page = urlopen(uri)
+        text = page.read().decode("utf-8")
+        print(text)
+
+
         # get sun elevation for all points in time relative to this pixel
+        elev, dist = compute_solar_elev()
 
         # compute local horizon in direction of sun
 
