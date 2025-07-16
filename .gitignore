@@ -4,7 +4,6 @@ docs/_build/
 data/tmp/
 dist/
 figures/
-scripts/
 __pycache__/
 *.zip
 *.prof
