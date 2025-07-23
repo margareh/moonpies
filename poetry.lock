@@ -3572,6 +3572,28 @@ docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
 test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.2)", "pytest-mock", "pytest-mypy-testing"]
 
 [[package]]
+name = "trimesh"
+version = "4.7.1"
+description = "Import, export, process, analyze and view triangular meshes."
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "trimesh-4.7.1-py3-none-any.whl", hash = "sha256:338c938ae78ad5b4d08dd6ceaa739498a47627bf0073147ee9a384ddd7435267"},
+    {file = "trimesh-4.7.1.tar.gz", hash = "sha256:3863c2b2281fc7a99bf0b5de4a0011229bde4663babc0c1b53a1f855149ec898"},
+]
+
+[package.dependencies]
+numpy = ">=1.20"
+
+[package.extras]
+all = ["trimesh[deprecated,easy,recommend,test,test-more]"]
+deprecated = ["openctm"]
+easy = ["charset-normalizer", "colorlog", "embreex", "httpx", "jsonschema", "lxml", "manifold3d (>=2.3.0)", "mapbox_earcut (>=1.0.2)", "networkx", "pillow", "pycollada", "pycollada (<=0.9.0)", "rtree", "scipy", "shapely", "svg.path", "vhacdx", "xxhash"]
+recommend = ["cascadio", "fast-simplification", "meshio", "psutil", "pyglet (<2)", "python-fcl", "scikit-image", "sympy"]
+test = ["pyinstrument", "pytest", "pytest-cov", "ruff"]
+test-more = ["coveralls", "ezdxf", "ipython", "marimo", "matplotlib", "pymeshlab", "pyright", "pytest-beartype", "triangle", "xatlas"]
+
+[[package]]
 name = "triton"
 version = "2.0.0"
 description = "A language and compiler for custom Deep Learning operations"
@@ -3845,4 +3867,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8,<3.12"
-content-hash = "4a43840bb150f02c2aa6d23ed82435836f3394caade8efefed5f2232d55f1ea8"
+content-hash = "025860de0d986b0acd6645753fae3da6519efcbbbc108b8458a549464a27d948"
