@@ -33,13 +33,17 @@ def make_horizon_db_cuda(dem, args):
             a = np.array([a])
 
         # Call to raytracing
-        dem_data = dem_data[6000:6100, 6000:6150]
+        # dem_data = dem_data[6000:6100, 6000:6150]
+        # print(dem_data.shape)
+        # dem_data = dem_data[2000:8000, 2000:8000]
         elevs = raytrace_horizon(dem_data, a, res=args.res, max_range=args.max_range, min_elev=args.min_elev, elev_delta=args.elev_delta)
-        elevs *= (180 / np.pi)
         elevs[np.abs(elevs-args.min_elev) < 0.0001] = np.nan
-        # print(elevs.shape) # expect to see (h,w)
-        print(np.min(elevs))
-        print(np.max(elevs))
+        print(elevs.shape) # expect to see (h,w)
+        # print(np.min(elevs))
+        # print(np.max(elevs))
+
+        non_zeros = (np.abs(elevs) > 0.0001)
+        print(np.sum(non_zeros))
 
         c_min = np.min(dem_data)
         c_max = np.max(dem_data)
@@ -47,12 +51,13 @@ def make_horizon_db_cuda(dem, args):
         # plot results
         r = int(np.floor(args.max_range * 1000 / args.res))
         h,w = dem_data.shape
-        y_pts = np.array([r, r, h-r, h-r, r])
-        x_pts = np.array([r, w-r, w-r, r, r])
+        # y_pts = np.array([r, r, h-r, h-r, r])
+        # x_pts = np.array([r, w-r, w-r, r, r])
+        dem_data_limit = dem_data[r:(h-r), r:(w-r)]
         plt.close()
         fig, ax = plt.subplots(1,2)
-        ax[0].imshow(dem_data, cmap='terrain', vmin=c_min, vmax=c_max)
-        ax[0].plot(x_pts, y_pts, c='red')
+        ax[0].imshow(dem_data_limit, cmap='terrain', vmin=c_min, vmax=c_max)
+        # ax[0].plot(x_pts, y_pts, c='red')
         ax[1].imshow(elevs, cmap='Blues')
         plt.show()
 
