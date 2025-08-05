@@ -58,6 +58,9 @@ def cartesian2spherical(x, y, z, deg=False):
 
 
 # convert from latitude and longitude to local ENU frame
+# lat, lon are the subsolar points
+# range is the range of the sun
+# lat0, lon0 are the local grid point(s)
 def latlon2enu(lat, lon, range, lat0, lon0, deg=False, esu=False):
 
     # make sure all inputs are arrays
@@ -182,7 +185,7 @@ def main(args):
     azims = []
     for _, row in eph_df.iterrows():
         
-        v_local = latlon2enu(-89., 1., row['sun_range'] * KM_AU * 1000, row['sun_sublat'], row['sun_sublon'], deg=True)
+        v_local = latlon2enu(row['sun_sublat'], row['sun_sublon'], row['sun_range'] * KM_AU * 1000, -89., 1., deg=True)
         _, elev, azim = cartesian2spherical(v_local[0,...], v_local[1,...], v_local[2,...], deg=True)
         elevs.append(elev)
         azims.append(azim)
@@ -196,113 +199,116 @@ def main(args):
     # print(np.min(azims_np))
     # print(np.max(azims_np))
 
-    fig, ax = plt.subplots(2,2)
-    ax[0,0].plot(t[:1000], elevs_np[:1000])
-    ax[0,0].set_title('Elevations, SP')
-    ax[1,0].plot(t[:1000], azims_np[:1000])
-    ax[1,0].set_title('Azimuths, SP')
-    ax[0,1].plot(t[:1000], eph_df['sun_sublat'].values[:1000])
-    ax[0,1].set_title('Subsolar Latitude')
-    ax[1,1].plot(t[:1000], eph_df['sun_sublon'].values[:1000])
-    ax[1,1].set_title('Subsolar Longitude')
-    plt.show()
+    # fig, ax = plt.subplots(2,2)
+    # ax[0,0].plot(t[:1000], elevs_np[:1000])
+    # ax[0,0].set_title('Elevations, SP')
+    # ax[1,0].plot(t[:1000], azims_np[:1000])
+    # ax[1,0].set_title('Azimuths, SP')
+    # ax[0,1].plot(t[:1000], eph_df['sun_sublat'].values[:1000])
+    # ax[0,1].set_title('Subsolar Latitude')
+    # ax[1,1].plot(t[:1000], eph_df['sun_sublon'].values[:1000])
+    # ax[1,1].set_title('Subsolar Longitude')
+    # plt.show()
 
-    # # loop through ephemeris data and calculate illumination fraction for each day
-    # start = time.time()
-    # i = 0
-    # for _, row in eph_df.iterrows():
+    # loop through ephemeris data and calculate illumination fraction for each day
+    start = time.time()
+    i = 0
+    for _, row in eph_df.iterrows():
 
-    #     if i % 100 == 0:
-    #         print("On iteration " + str(i+1) + " / " + str(len(eph_df)))
+        if i % 100 == 0:
+            print("On iteration " + str(i+1) + " / " + str(len(eph_df)))
 
-    #     # Compute position of sun relative to local frames
-    #     v_local = latlon2enu(lats, lons, row['sun_range'] * KM_AU, row['sun_sublat'], row['sun_sublon'], deg=True, esu=True)
-    #     _, elev, azim = cartesian2spherical(v_local[0,...], v_local[1,...], v_local[2,...], deg=True)
-    #     elev = elev.reshape((args.size, args.size))
-    #     azim = azim.reshape((args.size, args.size))
+        # Compute position of sun relative to local frames
+        v_local = latlon2enu(row['sun_sublat'], row['sun_sublon'], row['sun_range'] * KM_AU * 1000, lats, lons, deg=True, esu=True)
+        _, elev, azim = cartesian2spherical(v_local[0,...], v_local[1,...], v_local[2,...], deg=True)
+        elev = elev.reshape((args.size, args.size))
+        azim = azim.reshape((args.size, args.size))
 
-    #     # fig, ax = plt.subplots(1,2)
-    #     # ax[0].imshow(elev, cmap='plasma')
-    #     # ax[1].imshow(azim, cmap='plasma')
-    #     # plt.show()
+        # fig, ax = plt.subplots(1,2)
+        # ax[0].imshow(elev, cmap='plasma')
+        # ax[1].imshow(azim, cmap='plasma')
+        # plt.show()
 
-    #     # Pull elevations for this azimuth from the horizon db
-    #     # Doing a linear interpolation between two nearest azimuths
-    #     azim_low = np.floor(azim).astype(int)
-    #     azim_high = np.ceil(azim).astype(int)
-    #     azim_high[azim_high > 359] = 0 # wraparound
-    #     horizon_elev_low = np.squeeze(np.take_along_axis(horizon_db, azim_low[...,None], axis=-1))
-    #     horizon_elev_high = np.squeeze(np.take_along_axis(horizon_db, azim_high[...,None], axis=-1))
-    #     horizon_elev = (horizon_elev_low + horizon_elev_high) / 2
-    #     # print(horizon_elev.shape) # 800 x 800
+        # Pull elevations for this azimuth from the horizon db
+        # Doing a linear interpolation between two nearest azimuths
+        azim_low = np.floor(azim).astype(int)
+        azim_high = np.ceil(azim).astype(int)
+        azim_low[azim_low > 359] -= 360 # wraparound
+        azim_high[azim_high > 359] -= 360
+        horizon_elev_low = np.squeeze(np.take_along_axis(horizon_db, azim_low[...,None], axis=-1))
+        horizon_elev_high = np.squeeze(np.take_along_axis(horizon_db, azim_high[...,None], axis=-1))
+        horizon_elev = (horizon_elev_low + horizon_elev_high) / 2
+        # print(horizon_elev.shape) # 800 x 800
 
-    #     # Compare to the sun elevation and flag illuminated pixels
-    #     # According to this paper: file:///home/margareh/Zotero/storage/QF8G24NM/S0019103514004278.html#s0020
-    #     # the sun seen from the lunar horizon has an angular diameter of ~ 0.53 degrees
-    #     # will use this to compute how much of the solar disk is visible
-    #     # above and below the elevation from the ephemeris data
-    #     sun_elev_low = elev - sun_rad_deg
-    #     sun_elev_high = elev + sun_rad_deg
+        # Compare to the sun elevation and flag illuminated pixels
+        # According to this paper: file:///home/margareh/Zotero/storage/QF8G24NM/S0019103514004278.html#s0020
+        # the sun seen from the lunar horizon has an angular diameter of ~ 0.53 degrees
+        # will use this to compute how much of the solar disk is visible
+        # above and below the elevation from the ephemeris data
+        sun_elev_low = elev - sun_rad_deg
+        sun_elev_high = elev + sun_rad_deg
 
-    #     # calculate area under the chord across the sun disk at average terrain elevation
-    #     all_lit = (horizon_elev < sun_elev_low)
-    #     all_dark = (horizon_elev > sun_elev_high)
-    #     lower_disc = (sun_elev_low < horizon_elev) * (horizon_elev < elev)
+        # calculate area under the chord across the sun disk at average terrain elevation
+        all_lit = (horizon_elev < sun_elev_low)
+        all_dark = (horizon_elev > sun_elev_high)
+        lower_disc = (sun_elev_low < horizon_elev) * (horizon_elev < elev)
 
-    #     h = sun_elev_high - horizon_elev
-    #     h[lower_disc] = horizon_elev[lower_disc] - sun_elev_low[lower_disc]
+        h = sun_elev_high - horizon_elev
+        h[lower_disc] = horizon_elev[lower_disc] - sun_elev_low[lower_disc]
 
-    #     # I ~could~ make this run without warning me about invalid values in arccos and sqrt
-    #     # but where's the fun in that
-    #     with warnings.catch_warnings():
-    #         warnings.simplefilter("ignore")
-    #         lit_area_degsq = sun_rad_sq * np.arccos(1 - (h / sun_rad_deg)) - (sun_rad_deg - h) * np.sqrt(sun_rad_sq - (sun_rad_deg - h)**2)
+        # I ~could~ make this run without warning me about invalid values in arccos and sqrt
+        # but where's the fun in that
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            lit_area_degsq = sun_rad_sq * np.arccos(1 - (h / sun_rad_deg)) - (sun_rad_deg - h) * np.sqrt(sun_rad_sq - (sun_rad_deg - h)**2)
     
-    #     lit_area_degsq[lower_disc] = sun_area_degsq - lit_area_degsq[lower_disc]
-    #     lit_area_degsq[all_dark] = 0.0
-    #     lit_area_degsq[all_lit] = sun_area_degsq
+        lit_area_degsq[lower_disc] = sun_area_degsq - lit_area_degsq[lower_disc]
+        lit_area_degsq[all_dark] = 0.0
+        lit_area_degsq[all_lit] = sun_area_degsq
 
-    #     # accumulate illumination fraction
-    #     sum_illumin += lit_area_degsq / sun_area_degsq
+        # accumulate illumination fraction
+        sum_illumin += lit_area_degsq / sun_area_degsq
 
-    #     # print(np.min(sum_illumin))
-    #     # print(np.max(sum_illumin))
+        # print(np.min(sum_illumin))
+        # print(np.max(sum_illumin))
 
-    #     # # plot things
-    #     # plt.imshow(sum_illumin, cmap='inferno')
-    #     # plt.show()
+        # # plot things
+        # fig, ax = plt.subplots()
+        # im = ax.imshow(sum_illumin, cmap='inferno')
+        # fig.colorbar(im)
+        # plt.show()
 
-    #     i+= 1
+        i+= 1
 
-    # print("Elapsed time: %.2f" % (time.time() - start) + " s")
+    print("Elapsed time: %.2f" % (time.time() - start) + " s")
 
-    # # calculate illumination percentage
-    # illumin_frac = sum_illumin / len(eph_df)
+    # calculate illumination percentage
+    illumin_frac = sum_illumin / len(eph_df)
     
-    # # also compute a PSR map (ish - technically PSRs are based on thermal info)
-    # psrs = illumin_frac < args.psr_threshold
+    # also compute a PSR map (ish - technically PSRs are based on thermal info)
+    psrs = illumin_frac < args.psr_threshold
 
-    # # store the illumination percentage array
-    # np.savez_compressed(os.path.join(args.outpath, "illumination_psrs.npz"),
-    #          illumin_frac=illumin_frac,
-    #          psrs=psrs)
+    # store the illumination percentage array
+    np.savez_compressed(os.path.join(args.outpath, "illumination_psrs.npz"),
+             illumin_frac=illumin_frac,
+             psrs=psrs)
 
-    # # plot the illumination percentage and PSR map
-    # fig, ax = plt.subplots(1,2)
-    # fig.set_size_inches(20,10)
-    # im = ax[0].imshow(illumin_frac, cmap='inferno')
-    # ax[1].imshow(psrs, cmap='binary')
-    # ax[0].set_title('Illumination (%)')
-    # ax[1].set_title('PSRs')
-    # fig.colorbar(im)
+    # plot the illumination percentage and PSR map
+    fig, ax = plt.subplots(1,2)
+    fig.set_size_inches(20,10)
+    im = ax[0].imshow(illumin_frac, cmap='inferno')
+    ax[1].imshow(psrs, cmap='binary')
+    ax[0].set_title('Illumination (%)')
+    ax[1].set_title('PSRs')
+    fig.colorbar(im)
 
-    # if args.plot:
-    #     plt.show()
-    # else:
-    #     plt.savefig(os.path.join(args.outpath, "illumination_frac_and_psrs.png"), dpi=100, bbox_inches="tight")
-    #     plt.close()
+    if args.plot:
+        plt.show()
+    else:
+        plt.savefig(os.path.join(args.outpath, "illumination_frac_and_psrs.png"), dpi=100, bbox_inches="tight")
+        plt.close()
 
-    # return illumin_frac, psrs
+    return illumin_frac, psrs
 
 
 

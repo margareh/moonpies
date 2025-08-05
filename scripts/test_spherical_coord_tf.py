@@ -19,8 +19,8 @@ if __name__ == "__main__":
 
     # generate some data with points to test
     # these are points around the equator + poles + some others
-    lats = np.array([0., 0., 0., 0., 90., -90., 45., 45., -45., -45.])
-    lons = np.array([0., 90., 180., 270., 0., 0., 0., 180., 90., 270.])
+    lats = np.array([0., 0., 0., 0., 90., -90., 45., 45., -45., -45., -90.])
+    lons = np.array([0., 90., 180., 270., 0., 0., 0., 180., 90., 270., 180.])
     n = len(lats)
     # print(n) # 10
 
@@ -43,75 +43,82 @@ if __name__ == "__main__":
     eph = np.dstack((lons, lats)).reshape((n, 2))
 
     # everything at once!
-    v_local = latlon2enu(lats, lons, 1 * KM_AU, eph[:,1], eph[:,0], deg=True)
+    v_local = latlon2enu(eph[0,1], eph[0,0], 1e3 * KM_AU, lats, lons, deg=True)
     _, elev, azim = cartesian2spherical(v_local[0,...], v_local[1,...], v_local[2,...], deg=True)
-    # print(v_local.shape)
-    print(elev.shape)
-    print(azim.shape)
-    print(v_local[...,0].T)
-    print(elev[...,0])
-    print(azim[...,0])
-
-    # set up arrays to store results in
-    # local_elev_azim = np.zeros((n, n, 2))
-
-    # for ind, row in eph_df.iterrows():
-    # for i in range(1):
-
-    #     # # position of sun in cartesian coordinates centered on moon
-    #     # # elevation = latitude
-    #     # # azimuth = longitude
-    #     # x_moon, y_moon, z_moon = spherical2cartesian(1 * KM_AU, eph[i,1], eph[i,0], deg=True)
-
-    #     # # local grid point in cartesian coordinates centered on moon
-    #     # x_l, y_l, z_l = spherical2cartesian(1737.4, lats, lons, deg=True)
-
-    #     # # convert lats and longs to radians
-    #     # lats_r = np.deg2rad(lats)
-    #     # lons_r = np.deg2rad(lons)
-
-    #     # # convert to local coordinates for each of the points in the grid 
-    #     # cos_th = np.cos(lats_r)
-    #     # sin_th = np.sin(lats_r)
-    #     # cos_phi = np.cos(lons_r)
-    #     # sin_phi = np.sin(lons_r)
-
-    #     # # below definition is based on uvw2enu from https://github.com/geospace-code/pymap3d/blob/main/src/pymap3d/ecef.py#L365
-    #     # R = np.tile(np.eye(3).reshape((3,3,1)), (1,1,n))
-    #     # R[0, 0, :] = -sin_phi
-    #     # R[0, 1, :] = cos_phi
-    #     # R[1, 0, :] = -sin_th * cos_phi
-    #     # R[1, 1, :] = -sin_th * sin_phi
-    #     # R[1, 2, :] = cos_th
-    #     # R[2, 0, :] = cos_th * cos_phi
-    #     # R[2, 1, :] = cos_th * sin_phi
-    #     # R[2, 2, :] = sin_th
-
-    #     # # # additional transform from ENU to ESD
-    #     # # R_esd = np.array([[1., 0., 0.],
-    #     # #                   [0., -1., 0.],
-    #     # #                   [0., 0., -1.]])
-    #     # # R_full = np.einsum('ij,jlk->ilk', R_esd, R)
-
-    #     # # transform point for the sun in cartesian coordinates from global to local ENU surface frame for each point in grid
-    #     # local_t = np.array([x_l, y_l, z_l]).reshape((3,n))
-    #     # diff = np.array([x_moon, y_moon, z_moon]).reshape((3,1)) - local_t
-    #     # v_local = np.einsum('ijk,jk->ik', R, diff).T # n x 3 output
-    #     # # print(v_local)
-    #     # # print(np.linalg.norm(v_local, axis=0)) # these are all > 0
-
-    #     # # apply rotation to normal vectors to see if they only have z components (how it should be)
-    #     # norms = local_t / np.linalg.norm(local_t, axis=0)
-    #     # norms_local = np.einsum('ijk,jk->ik', R, norms).T
-    #     # # print(norms_local)
-    #     # # all of these have 1 z components (norms pointing away from surface)
-
-    # function version
-    v_local = latlon2enu(eph[0,1], eph[0,0], 1 * KM_AU, lats, lons, deg=True)
+    print(v_local.shape)
+    # print(elev.shape) # 3 x 11 x 11 
+    # print(azim.shape) # 
+    print("Local ENU points (first ):")
     print(v_local.T)
 
-    # convert back to spherical coordinates in local frame --> elevation and azimuth of sun in local frame
-    _, elev, azim = cartesian2spherical(v_local[0,:], v_local[1,:], v_local[2,:], deg=True)
+    print("Local elevation and azimuth:")
+    print(elev)
+    print(azim)
+
+    # set up arrays to store results in
+    local_elev_azim = np.zeros((n, n, 2))
+
+    # for ind, row in eph_df.iterrows():
+
+    print("Previous version:")
+    for i in range(1):
+
+        # position of sun in cartesian coordinates centered on moon
+        # elevation = latitude
+        # azimuth = longitude
+        x_moon, y_moon, z_moon = spherical2cartesian(1e3 * KM_AU, eph[i,1], eph[i,0], deg=True)
+
+        # local grid point in cartesian coordinates centered on moon
+        x_l, y_l, z_l = spherical2cartesian(1737400, lats, lons, deg=True)
+
+        # convert lats and longs to radians
+        lats_r = np.deg2rad(lats)
+        lons_r = np.deg2rad(lons)
+
+        # convert to local coordinates for each of the points in the grid 
+        cos_th = np.cos(lats_r)
+        sin_th = np.sin(lats_r)
+        cos_phi = np.cos(lons_r)
+        sin_phi = np.sin(lons_r)
+
+        # below definition is based on uvw2enu from https://github.com/geospace-code/pymap3d/blob/main/src/pymap3d/ecef.py#L365
+        R = np.tile(np.eye(3).reshape((3,3,1)), (1,1,n))
+        R[0, 0, :] = -sin_phi
+        R[0, 1, :] = cos_phi
+        R[1, 0, :] = -sin_th * cos_phi
+        R[1, 1, :] = -sin_th * sin_phi
+        R[1, 2, :] = cos_th
+        R[2, 0, :] = cos_th * cos_phi
+        R[2, 1, :] = cos_th * sin_phi
+        R[2, 2, :] = sin_th
+
+        # # additional transform from ENU to ESD
+        # R_esd = np.array([[1., 0., 0.],
+        #                   [0., -1., 0.],
+        #                   [0., 0., -1.]])
+        # R_full = np.einsum('ij,jlk->ilk', R_esd, R)
+
+        # transform point for the sun in cartesian coordinates from global to local ENU surface frame for each point in grid
+        local_t = np.array([x_l, y_l, z_l]).reshape((3,n))
+        diff = np.array([x_moon, y_moon, z_moon]).reshape((3,1)) - local_t
+        v_local = np.einsum('ijk,jk->ik', R, diff) # n x 3 output
+        print(v_local.T)
+        # print(np.linalg.norm(v_local, axis=0)) # these are all > 0
+
+        # apply rotation to normal vectors to see if they only have z components (how it should be)
+        norms = local_t / np.linalg.norm(local_t, axis=0)
+        norms_local = np.einsum('ijk,jk->ik', R, norms).T
+        print("Local norms (should all have 1 z components):")
+        print(norms_local)
+        # all of these have 1 z components (norms pointing away from surface)
+
+    # function version
+    print("Function version:")
+    v_local = latlon2enu(eph[0,1], eph[0,0], 1e3 * KM_AU, lats, lons, deg=True)
+    print(v_local.T)
+
+    # # convert back to spherical coordinates in local frame --> elevation and azimuth of sun in local frame
+    _, elev, azim = cartesian2spherical(v_local[0,...], v_local[1,...], v_local[2,...], deg=True)
     print(elev)
     print(azim)
 
