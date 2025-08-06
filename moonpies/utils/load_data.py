@@ -15,8 +15,14 @@ def load_tifs(cfg, cache=False):
     These tif files have a nominal resolution of 20 m per pixel
     """
 
+    # check if we actually have a numpy file for these
+    if cfg.psr_spat.find('npz'):
+        data = np.load(cfg.psr_spat)
+        psr_out = data['psrs']
+        slope = None
+
     # check if we have datasets cached
-    if cache and os.path.exists(os.path.join(cfg.data_path, 'tif_cache.npz')):
+    elif cache and os.path.exists(os.path.join(cfg.data_path, 'tif_cache.npz')):
         print("Using cache")
         print(cfg.data_path)
         data = np.load(os.path.join(cfg.data_path, 'tif_cache.npz'))

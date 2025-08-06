@@ -35,6 +35,16 @@ MODE_DEFAULTS = {
         'ballistic_sed': True,
         'impact_gardening_costello': True,
         'impact_speed_mean': 17e3,  # [m/s] 
+    },
+    'synthterrain' : {
+        'solar_wind_ice' : True,
+        'ballistic_hop_moores' : False,
+        'ejecta_basins' : False,
+        'impact_ice_basins' : False,
+        'impact_ice_comets' : True,
+        'use_volc_dep_effcy' : True,
+        'impact_gardening_costello' : True,
+        'impact_speed_mean' : 17e3
     }
 }
 
@@ -83,7 +93,7 @@ class Cfg:
     vmin_log_ice: float = -14.0 # minimum log ice fraction for plot colorbar
     
     # Setup Cannon vs MoonPIES config mode and lunar pole
-    mode: str = 'moonpies'  # ['moonpies', 'cannon']
+    mode: str = 'moonpies'  # ['moonpies', 'cannon', 'synthterrain']
     pole: str = 's'  # ['s', 'n'] TODO: only s is currently supported
 
     # Mode options set in __post_init__ by _set_mode_defaults()
@@ -130,7 +140,7 @@ class Cfg:
     icecol_npy_out: str = 'ice_columns_grid.npy'
 
     # Grid and time size and resolution
-    dtype = np.float64  # np.float64 (32 should be good for most purposes)
+    dtype = np.float32  # np.float64 (32 should be good for most purposes)
     rtol = 1e-6  # Rounding tolerance for floating point comparisons (mainly for rounding error with float time_arr)
     grdxsize: int = 304e3  # [m] originally 400e3
     grdysize: int = 304e3  # [m] originally 400e3

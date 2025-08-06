@@ -32,7 +32,7 @@ from moonpies.utils.gp import GP, gp_predict
 from moonpies.utils.utils import vprint, clear_cache, get_grid_arrays
 from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
 from moonpies.utils.load_data import read_crater_list, read_basin_list, load_tifs
-from moonpies.utils.save_output import format_save_outputs, get_gc_dist_grid
+from moonpies.utils.save_output import get_gc_dist_grid
 
 from moonpies.processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp, get_melt_frac
 from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
@@ -82,21 +82,28 @@ class MoonPIES():
         # randomization function also sorts based on age and name
         df = pd.concat([df_craters, df_basins])
         self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
+        # print(len(self.df))
+
+        if self.cfg.coldtrap_names is None:
+            self.cfg.coldtrap_names = self.df.index
 
         if not cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
 
         # Load the PSR and slope data
+        print("Loading PSR data...")
         # These are adjusted to have the same size and resolution as our grid
         self.psr, self.slope = load_tifs(cfg, cache=True)
         # print(self.psr.shape) # 608 x 608
         # print(self.slope.shape)
 
         # Pre-compute distances to each crater and masks for craters
+        print("Computing crater distances...")
         self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
         self.crater_mask = np.zeros_like(self.crater_dist_grid)
         # print(self.crater_mask.shape) # 51 x 608 x 608
 
+        print("Computing crater masks")
         self.coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         for i, row in self.df.iterrows():
@@ -125,6 +132,7 @@ class MoonPIES():
         self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
+        print("Computing ejecta thicknesses...")
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
         # dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg)
         self.dists_masked = copy.copy(self.crater_dist_grid)
@@ -138,6 +146,7 @@ class MoonPIES():
 
         # set up ballistic hop efficiency grid
         # first add the values for cold traps
+        print("Getting ballistic hop efficiency grid...")
         bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct, 1, 1))
         bhops_ct = np.sum(bhops * self.coldtrap_mask, axis=0)
 
@@ -146,6 +155,7 @@ class MoonPIES():
         self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
 
         # Pre-compute overturn depth
+        print("Getting overturn depth time...")
         self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
         # print(self.overturn.shape) # 425 (time)
 
@@ -156,6 +166,7 @@ class MoonPIES():
         self.t_ind_ct = 0 # index into cold trap list
 
         # Compute initial ejecta thickness
+        print("Getting initial values of ejecta and ice")
         # this is equivalent to the total ejecta thickness for all craters that have been formed
         # by a specified time t
         self.deliver_ejecta(init=True) # results stored in self.ej_col_grid
@@ -175,6 +186,7 @@ class MoonPIES():
         self.t_ind += 1
 
         # Load the data and GP for melt fraction interpolation
+        print("Getting GP for melt fraction interpolation...")
         df = pd.read_csv(cfg.bsed_frac_mean_in, index_col=0, dtype=cfg.dtype)
         df.columns = df.columns.astype(cfg.dtype)
         x = df.columns.to_numpy()[1:].astype(np.float64)

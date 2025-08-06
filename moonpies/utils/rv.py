@@ -80,6 +80,9 @@ def randomize_crater_ages(df, timestep, rng=None):
     """
     rng = _rng(rng)
 
+    # If there's no difference between bounds, set age to the regular value
+    diff = np.abs(df['age_upp'] - df['age_low'])
+
     # Set standard deviation and get scaling params for truncnorm
     sig = df[["age_low", "age_upp"]].mean(axis=1) / 2
     a = -df.age_low / sig
@@ -87,7 +90,8 @@ def randomize_crater_ages(df, timestep, rng=None):
 
     # Truncated normal, returns vector of randomized ages
     new_ages = stats.truncnorm.rvs(a, b, df.age, sig, random_state=rng)
-    df["age"] = round_to_ts(new_ages, timestep)
+    cond = np.abs(df.loc[:,'age_upp']-df.loc[:,'age_low']) > 0.0001
+    df.loc[cond,"age"] = round_to_ts(new_ages[cond], timestep)
     df = df.sort_values(["age", "cname"], ascending=[False, True]).reset_index(drop=True)
     return df
 
