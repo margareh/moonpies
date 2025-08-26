@@ -7,7 +7,7 @@ import numpy as np
 from functools import _lru_cache_wrapper
 
 
-def get_ice_thickness(global_ice_mass, cfg):
+def get_ice_thickness(global_ice_mass, cfg, coldtraps=True):
     """Return polar ice thickness [m] given globally delivered ice mass [kg].
 
     Assumes ice is uniformly distributed over polar coldtrap area and has a 
@@ -31,14 +31,25 @@ def get_ice_thickness(global_ice_mass, cfg):
     -------
     ice_thickness : np.ndarray
         Polar ice thickness [m].
-    """    
-    if cfg.ice_species == "H2O":
-        coldtrap_area = cfg.coldtrap_area_H2O
-    elif cfg.ice_species == "CO2":
-        coldtrap_area = cfg.coldtrap_area_CO2
-    polar_ice_mass = global_ice_mass * cfg.ballistic_hop_effcy  # [kg]
-    ice_volume = polar_ice_mass / cfg.ice_density  # [m^3]
-    ice_thickness = ice_volume / coldtrap_area
+    """
+    if coldtraps:
+        if cfg.ice_species == "H2O":
+            coldtrap_area = cfg.coldtrap_area_H2O
+        elif cfg.ice_species == "CO2":
+            coldtrap_area = cfg.coldtrap_area_CO2
+        polar_ice_mass = global_ice_mass * cfg.ballistic_hop_effcy  # [kg]
+        ice_volume = polar_ice_mass / cfg.ice_density  # [m^3]
+        ice_thickness = ice_volume / coldtrap_area
+
+    else:
+        # uniform distribution of ice mass over area covered by map
+        # map_area = (cfg.grdxsize * cfg.grdstep) * (cfg.grdysize * cfg.grdstep)
+        # polar_ice_mass = global_ice_mass * (map_area) / cfg.sa_moon
+        # ice_volume = polar_ice_mass / cfg.ice_density
+        # ice_thickness = ice_volume / (map_area)
+        # comes out to the same as a uniform distribution of ice mass over entire moon
+        ice_thickness = (global_ice_mass) / (cfg.ice_density * cfg.sa_moon)
+    
     return ice_thickness
 
 

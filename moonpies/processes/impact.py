@@ -221,7 +221,7 @@ def overturn_depth_costello_time(time_arr, cfg):
 
 
 # Impact-delivered ice module
-def get_impact_ice(time_arr, df, cfg, rng=None):
+def get_impact_ice(time_arr, df, cfg, rng=None, coldtraps=True):
     """Return polar ice thickness [m] from global impacts at each time.
 
     Parameters
@@ -242,14 +242,13 @@ def get_impact_ice(time_arr, df, cfg, rng=None):
         Polar ice thickness [m] at each time.
     """
     impact_ice_t = np.zeros_like(time_arr)
-    impact_ice_t += get_micrometeorite_ice(time_arr, cfg)
-    impact_ice_t += get_small_impactor_ice(time_arr, cfg)
-    impact_ice_t += get_small_simple_crater_ice(time_arr, cfg)
-    impact_ice_t += get_large_simple_crater_ice(time_arr, cfg, rng)
-    impact_ice_t += get_complex_crater_ice(time_arr, cfg, rng)
-    impact_ice_basins_t = get_basin_ice(time_arr, df, cfg, rng)
+    impact_ice_t += get_micrometeorite_ice(time_arr, cfg, coldtraps=coldtraps)
+    impact_ice_t += get_small_impactor_ice(time_arr, cfg, coldtraps=coldtraps)
+    impact_ice_t += get_small_simple_crater_ice(time_arr, cfg, coldtraps=coldtraps)
+    impact_ice_t += get_large_simple_crater_ice(time_arr, cfg, rng, coldtraps=coldtraps)
+    impact_ice_t += get_complex_crater_ice(time_arr, cfg, rng, coldtraps=coldtraps)
     if cfg.impact_ice_basins:
-        # get_basin_ice is run every time for repro, but only add if needed
+        impact_ice_basins_t = get_basin_ice(time_arr, df, cfg, rng, coldtraps=coldtraps)
         impact_ice_t += impact_ice_basins_t
     return impact_ice_t
 
@@ -280,7 +279,7 @@ def get_comet_cfg(cfg):
     return config.from_dict(comet_cfg_dict)
 
 
-def get_impact_ice_comet(time_arr, df, cfg, rng=None):
+def get_impact_ice_comet(time_arr, df, cfg, rng=None, coldtraps=True):
     """Return polar ice thickness [m] from comet impacts at each time.
 
     Parameters
@@ -301,11 +300,11 @@ def get_impact_ice_comet(time_arr, df, cfg, rng=None):
     """    
     # Repeat get_impact_ice with comet cfg
     comet_cfg = get_comet_cfg(cfg)
-    comet_ice_t = get_impact_ice(time_arr, df, comet_cfg, rng)
+    comet_ice_t = get_impact_ice(time_arr, df, comet_cfg, rng, coldtraps=coldtraps)
     return comet_ice_t
 
 
-def get_micrometeorite_ice(time_arr, cfg):
+def get_micrometeorite_ice(time_arr, cfg, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole due to micrometeorites vs time.
 
@@ -314,11 +313,11 @@ def get_micrometeorite_ice(time_arr, cfg):
     mm_ice_t (arr): Ice thickness [m] delivered to pole at each time.
     """
     mm_ice_mass = ice_micrometeorites(time_arr, cfg)
-    mm_ice_t = get_ice_thickness(mm_ice_mass, cfg)
+    mm_ice_t = get_ice_thickness(mm_ice_mass, cfg, coldtraps=coldtraps)
     return mm_ice_t
 
 
-def get_small_impactor_ice(time_arr, cfg):
+def get_small_impactor_ice(time_arr, cfg, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole due to small impactors vs time.
 
@@ -328,11 +327,11 @@ def get_small_impactor_ice(time_arr, cfg):
     """
     impactor_diams, impactors = get_small_impactor_pop(time_arr, cfg)
     si_ice_mass = ice_small_impactors(impactor_diams, impactors, cfg)
-    si_ice_t = get_ice_thickness(si_ice_mass, cfg)
+    si_ice_t = get_ice_thickness(si_ice_mass, cfg, coldtraps=coldtraps)
     return si_ice_t
 
 
-def get_small_simple_crater_ice(time_arr, cfg):
+def get_small_simple_crater_ice(time_arr, cfg, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole by small simple crater impacts.
 
@@ -343,11 +342,11 @@ def get_small_simple_crater_ice(time_arr, cfg):
     crater_diams, n_craters_t, sfd_prob = get_crater_pop(time_arr, "c", cfg)
     n_craters = n_craters_t * sfd_prob
     ssc_ice_mass = ice_small_craters(crater_diams, n_craters, "c", cfg)
-    ssc_ice_t = get_ice_thickness(ssc_ice_mass, cfg)
+    ssc_ice_t = get_ice_thickness(ssc_ice_mass, cfg, coldtraps=coldtraps)
     return ssc_ice_t
 
 
-def get_large_simple_crater_ice(time_arr, cfg, rng=None):
+def get_large_simple_crater_ice(time_arr, cfg, rng=None, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole by large simple crater impacts.
 
@@ -356,11 +355,11 @@ def get_large_simple_crater_ice(time_arr, cfg, rng=None):
     lsc_ice_t (arr): Ice thickness [m] delivered to pole at each time.
     """
     lsc_ice_mass = get_ice_stochastic(time_arr, "d", cfg, rng)
-    lsc_ice_t = get_ice_thickness(lsc_ice_mass, cfg)
+    lsc_ice_t = get_ice_thickness(lsc_ice_mass, cfg, coldtraps=coldtraps)
     return lsc_ice_t
 
 
-def get_complex_crater_ice(time_arr, cfg, rng=None):
+def get_complex_crater_ice(time_arr, cfg, rng=None, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole by complex crater impacts.
 
@@ -369,11 +368,11 @@ def get_complex_crater_ice(time_arr, cfg, rng=None):
     cc_ice_t (arr): Ice thickness [m] delivered to pole at each time.
     """
     cc_ice_mass = get_ice_stochastic(time_arr, "e", cfg, rng)
-    cc_ice_t = get_ice_thickness(cc_ice_mass, cfg)
+    cc_ice_t = get_ice_thickness(cc_ice_mass, cfg, coldtraps=coldtraps)
     return cc_ice_t
 
 
-def get_basin_ice(time_arr, df, cfg, rng=None):
+def get_basin_ice(time_arr, df, cfg, rng=None, coldtraps=True):
     """
     Return ice thickness [m] delivered to pole by basin impacts vs time.
 
@@ -382,7 +381,7 @@ def get_basin_ice(time_arr, df, cfg, rng=None):
     b_ice_t (arr): Ice thickness [m] delivered to pole at each time.
     """
     b_ice_mass = ice_basins(df, time_arr, cfg, rng)
-    b_ice_t = get_ice_thickness(b_ice_mass, cfg)
+    b_ice_t = get_ice_thickness(b_ice_mass, cfg, coldtraps=coldtraps)
     return b_ice_t
 
 
