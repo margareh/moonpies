@@ -1,78 +1,48 @@
-[tool.poetry]
+[project]
 name = "moonpies"
-version = "1.1.0"
 description = "Moon Polar Ice and Ejecta Stratigraphy model"
-authors = ["Christian J. Tai Udovicic <cjtu@nau.edu>", "Katelyn R. Frizzell", "Kristen M. Luchsinger", "Alissa Madera", "Tyler G. Paladino"]
-license = "MIT"
+version = "1.1.0"
+authors = [
+    {name = "Christian J. Tai Udovicic", email = "cjtu@nau.edu"},
+    {name = "Katelyn R. Frizzell"},
+    {name = "Kristen M. Luchsinger"},
+    {name = "Alissa Madera"},
+    {name = "Tyler G. Paladino"}
+]
+maintainers = [
+    {name = "Margaret Hansen", email = "margareh@andrew.cmu.edu"}
+]
 readme = "README.md"
-repository = "https://github.com/cjtu/moonpies"
+requires-python = ">= 3.8"
+license-files = ["LICENSE"]
 classifiers = [
     'Intended Audience :: Science/Research',
-    'License :: OSI Approved :: MIT License',
     'Natural Language :: English',
     'Operating System :: OS Independent',
     'Topic :: Scientific/Engineering :: Astronomy',
     'Programming Language :: Python :: 3.8',
 ]
+dependencies = [
+    "numpy>1.17",
+    "pandas>1.0",
+    "matplotlib>3.3",
+    "scipy>1.9.1",
+    "gpytorch>1.11",
+    "trimesh>4.7.1"
+]
 
-[tool.poetry.urls]
-"Bug Tracker" = "https://github.com/cjtu/moonpies/issues"
+[project.urls]
+Repository = "https://github.com/cjtu/moonpies"
 
-[tool.poetry.dependencies]
-python = "^3.8,<3.12"
-numpy = "^1.17"
-pandas = "^1.0"
-matplotlib = "^3.3"
-scipy = "^1.9.1"
-torch = {url = "https://download.pytorch.org/whl/cu118/torch-2.0.1%2Bcu118-cp38-cp38-linux_x86_64.whl"}
-gpytorch = "^1.11"
-trimesh = "^4.7.1"
-
-[tool.poetry.group.dev.dependencies]
-patchworklib = "^0.5.0"
-
-[tool.poetry.dev-dependencies]
-jupyter = "^1.0.0"
-black = "^22.3.0"
-pylint = "^2.9.3"
-pytest = "^6.2.4"
-pandoc = "^1.1.0"
-snakeviz = "^2.1.0"
-Sphinx = "^4.1.2"
-sphinx-rtd-theme = "^0.5.2"
-myst-parser = "^0.15.1"
-numpydoc = "^1.1.0"
-seaborn = "^0.11.2"
-
-[tool.poetry.scripts]
+[project.scripts]
 moonpies = "moonpies.cli:run"
 plot_moonpies = "moonpies.cli:plot"
 moonpies_orig = "moonpies.cli:run_orig"
 
-[tool.black]
-line-length=79
-exclude = '''
-(
-  /(
-    | \.git          # root of the project
-    | \.venv
-    | _build
-    | build
-    | dist
-  )/
-  | moonpies/config.py
-)
-'''
-
-[tool.pylint.typecheck]
-generated-members=["pandas.*","pd.*"]
-
-[tool.pylint.reports]
-output-format="colorized"
-reports="y"
-disable=["R0913","C0103","E1136","E1137","W0511"]
-msg-template="{msg_id}:{line:3d},{column}: {obj}: {msg}"
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["moonpies"]
+
