@@ -45,7 +45,7 @@ class MoonPIES():
     # initialize the simulation
     # this includes loading the data, reading the configuration (if provided),
     # and intiializing precomputed data structures and values
-    def __init__(self, cfg=config.Cfg()):
+    def __init__(self, cfg=config.Cfg(), crater_db=None, basin_db=None, psr_mask=None):
         self.cfg = cfg
 
         # Setup phase
@@ -66,17 +66,23 @@ class MoonPIES():
         # print(self.ice_col_grid.shape) # 608 x 608
 
         # Setup crater list
-        df_craters = read_crater_list(cfg)
-        df_craters["isbasin"] = False
-        df_craters["icy_impactor"] = "no"
-        # n_crater = len(df_craters)
-        # print(n_crater) # 24
+        if crater_db is None:
+            df_craters = read_crater_list(cfg)
+            df_craters["isbasin"] = False
+            df_craters["icy_impactor"] = "no"
+            # n_crater = len(df_craters)
+            # print(n_crater) # 24
+        else:
+            df_craters = copy.copy(crater_db)
 
-        df_basins = read_basin_list(cfg)
-        df_basins["isbasin"] = True
-        df_basins = random_icy_basins(df_basins, cfg, self.rng)
-        # n_basin = len(df_basins)
-        # print(n_basin) # 27
+        if basin_db is None:
+            df_basins = read_basin_list(cfg)
+            df_basins["isbasin"] = True
+            df_basins = random_icy_basins(df_basins, cfg, self.rng)
+            # n_basin = len(df_basins)
+            # print(n_basin) # 27
+        else:
+            df_basins = copy.copy(basin_db)
 
         # Combine DataFrames and randomize ages
         # randomization function also sorts based on age and name
@@ -92,10 +98,14 @@ class MoonPIES():
 
         # Load the PSR and slope data
         print("Loading PSR data...")
-        # These are adjusted to have the same size and resolution as our grid
-        self.psr, self.slope = load_tifs(cfg, cache=True)
-        # print(self.psr.shape) # 608 x 608
-        # print(self.slope.shape)
+        if psr_mask is None:
+            # These are adjusted to have the same size and resolution as our grid
+            self.psr, self.slope = load_tifs(cfg, cache=True)
+            # print(self.psr.shape) # 608 x 608
+            # print(self.slope.shape)
+        else:
+            # currently slope isn't used, so we aren't losing out on that if it isn't provided
+            self.psr = copy.copy(psr_mask)
 
         # Pre-compute distances to each crater and masks for craters
         print("Computing crater distances...")
