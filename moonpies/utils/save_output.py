@@ -97,9 +97,15 @@ def get_gc_dist_grid(df, grdx, grdy, cfg, mask=True):
     ny, nx = grdy.shape[0], grdx.shape[1]
     grdlat, grdlon = xy2latlon(grdx, grdy, cfg.rad_moon)
     grd_dist = np.zeros((len(df), nx, ny), dtype=cfg.dtype)
+    local_coords = True if 'x' in df.columns else False
+
     for i, row in df.iterrows():
-        clon, clat, crad = row[["lon", "lat", "rad"]]
-        grd_dist[i] = gc_dist(clon, clat, grdlon, grdlat)
+        if local_coords:
+            x, y, crad = row[['x', 'y', 'rad']]
+            grd_dist[i] = np.sqrt((x-grdx)**2 + (y-grdy)**2)
+        else:
+            clon, clat, crad = row[["lon", "lat", "rad"]]
+            grd_dist[i] = gc_dist(clon, clat, grdlon, grdlat)
 
         if mask:
             cmask = grd_dist[i] < crad  # Mask crater interior
@@ -137,9 +143,14 @@ def get_age_grid(df, grdx, grdy, cfg):
     ny, nx = grdy.shape[0], grdx.shape[1]
     grdlat, grdlon = xy2latlon(grdx, grdy, cfg.rad_moon)
     age_grid = np.ones((nx, ny), dtype=cfg.dtype) * cfg.timestart
+    local_coords = True if 'x' in df.columns else False
     for i, row in df.iterrows():
-        lon, lat, rad, age, basin = row[["lon", "lat", "rad", "age", "isbasin"]]
-        grd_dist = gc_dist(lon, lat, grdlon, grdlat)
+        if local_coords:
+            x, y, rad, age, basin = row[['x', 'y', 'rad', 'age', 'isbasin']]
+            grd_dist = np.sqrt((x-grdx)**2 + (y-grdy)**2)
+        else:
+            lon, lat, rad, age, basin = row[["lon", "lat", "rad", "age", "isbasin"]]
+            grd_dist = gc_dist(lon, lat, grdlon, grdlat)
         ej_thresh = cfg.basin_ej_threshold if basin else cfg.ej_threshold
         ejmask = grd_dist < rad * ej_thresh  # Mask ejecta blanket
         age_grid = np.where(ejmask, age, age_grid)  # Update age in ejecta

@@ -120,26 +120,43 @@ def get_coldtrap_dists(df, cfg):
         2D array of distances from craters to cold traps (Ncrater, Ncoldtrap).
     """
     dist = np.zeros((len(df), len(cfg.coldtrap_names)), dtype=cfg.dtype)
+    local_coords = True if 'x' in df.columns else False
     for i, row in df.iterrows():
-        src_lon = row.lon
-        src_lat = row.lat
-        src_rad = row.rad
+
         if row.isbasin:
             ej_threshold = cfg.basin_ej_threshold
         else:
             ej_threshold = cfg.ej_threshold
         if ej_threshold < 0:
             ej_threshold = np.inf
+
+        if local_coords:
+            src_x = row.x
+            src_y = row.y
+            src_rad = row.rad
+        else:
+            src_lon = row.lon
+            src_lat = row.lat
+            src_rad = row.rad
+
         for j, cname in enumerate(cfg.coldtrap_names):
             if row.cname == cname:
                 dist[i, j] = np.nan
                 continue
-            dst_lon = df[df.cname == cname].psr_lon.values
-            dst_lat = df[df.cname == cname].psr_lat.values
-            d = gc_dist(src_lon, src_lat, dst_lon, dst_lat)
+
+            if local_coords:
+                dst_x = df[df.cname == cname].x.values
+                dst_y = df[df.cname == cname].y.values
+                d = np.sqrt((dst_x-src_x)**2 + (dst_y-src_y)**2)
+            else:
+                dst_lon = df[df.cname == cname].psr_lon.values
+                dst_lat = df[df.cname == cname].psr_lat.values
+                d = gc_dist(src_lon, src_lat, dst_lon, dst_lat)
+
             # Only keep distances outside crater radius and less than thresh
             if src_rad < d < ej_threshold * src_rad:
                 dist[i, j] = d
+    
     dist[dist <= 0] = np.nan  # Set zeros to NaN
     return dist
 
