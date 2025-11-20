@@ -66,7 +66,7 @@ class MoonPIES():
         # print(self.ice_col_grid.shape) # 608 x 608
 
         # Load data and initialize useful things
-        self.update_crater_info(crater_db, basin_db, psr_mask, random_ages=random_ages)
+        self.update_crater_info(crater_db, basin_db, psr_mask)
 
         # Pre-compute overturn depth
         print("Getting overturn depth time...")
@@ -274,7 +274,7 @@ class MoonPIES():
 
             # increment counter and time index
             i += 1
-            self.t_ind += 1    
+            self.t_ind += 1
 
     # save the output
     def save_output(self):
