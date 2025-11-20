@@ -66,7 +66,7 @@ class MoonPIES():
         # print(self.ice_col_grid.shape) # 608 x 608
 
         # Load data and initialize useful things
-        self.update_crater_info(crater_db, basin_db, psr_mask)
+        self.update_crater_info(crater_db, basin_db, psr_mask, random_ages=random_ages)
 
         # Pre-compute overturn depth
         print("Getting overturn depth time...")
@@ -127,11 +127,11 @@ class MoonPIES():
 
     
     # update crater list and PSR masks
-    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None, random_ages=True):
+    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None):
 
         # crater info
         if crater_db is None:
-            df_craters = read_crater_list(cfg)
+            df_craters = read_crater_list(self.cfg)
             df_craters["isbasin"] = False
             df_craters["icy_impactor"] = "no"
             # n_crater = len(df_craters)
@@ -140,35 +140,31 @@ class MoonPIES():
             df_craters = copy.copy(crater_db)
 
         if basin_db is None:
-            df_basins = read_basin_list(cfg)
+            df_basins = read_basin_list(self.cfg)
             df_basins["isbasin"] = True
-            df_basins = random_icy_basins(df_basins, cfg, self.rng)
+            df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
             # n_basin = len(df_basins)
             # print(n_basin) # 27
         else:
             df_basins = copy.copy(basin_db)
 
-        # Combine DataFrames and randomize ages
+        # Combine DataFrames and randomize ages if upper and lower bounds are not the same
         # randomization function also sorts based on age and name
         df = pd.concat([df_craters, df_basins])
-        if random_ages:
-            self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
-        else:
-            # TODO: sort the dataframe based on age and name
-            pass
+        self.df = randomize_crater_ages(df, self.cfg.timestep, self.rng)
         # print(len(self.df))
 
         if self.cfg.coldtrap_names is None:
             self.cfg.coldtrap_names = self.df.index
 
-        if not cfg.ejecta_basins:
+        if not self.cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
 
         # Load the PSR and slope data
         print("Loading PSR data...")
         if psr_mask is None:
             # These are adjusted to have the same size and resolution as our grid
-            self.psr, self.slope = load_tifs(cfg, cache=True)
+            self.psr, self.slope = load_tifs(self.cfg, cache=True)
             # print(self.psr.shape) # 608 x 608
             # print(self.slope.shape)
         else:
