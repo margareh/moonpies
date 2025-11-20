@@ -45,7 +45,6 @@ MODE_DEFAULTS = {
         'use_volc_dep_effcy' : True,
         'impact_gardening_costello' : True,
         'impact_speed_mean' : 17e3,
-        'impact_ice_basins' : False,
     }
 }
 
