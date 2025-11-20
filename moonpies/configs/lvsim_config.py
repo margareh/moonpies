@@ -1,0 +1,16 @@
+{
+    'mode' : 'synthterrain',
+    'crater_csv_in' : 'synthterrain_craters.csv',
+    'psr_spat' : 'psrs.npz',
+    'spatial_data_path' : '',
+    'crater_cols' : ('x', 'y', 'diam', 'age','d/D'),
+    'grdxsize' : 1000,
+    'grdysize' : 1000,
+    'grdstep' : 1,
+    'tif_mpp' : 1,
+    'timestart' : 3.8e9,
+    'timeend' : 0,
+    'timestep' : 10e6,
+    'coldtrap_names' : None,
+    'verbose' : True,
+}
