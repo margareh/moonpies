@@ -65,7 +65,71 @@ class MoonPIES():
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
         # print(self.ice_col_grid.shape) # 608 x 608
 
-        # Setup crater list
+        # Load data and initialize useful things
+        self.update_crater_info(crater_db, basin_db, psr_mask)
+
+        # Pre-compute overturn depth
+        print("Getting overturn depth time...")
+        self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
+        # print(self.overturn.shape) # 425 (time)
+
+        # initial values based on start time of sim
+        self.t = float(self.cfg.timestart)
+        self.t_ind = 0 # time index into time array
+        self.t_ind_cr = 0 # index into crater list
+        self.t_ind_ct = 0 # index into cold trap list
+
+        # Compute initial ejecta thickness
+        print("Getting initial values of ejecta and ice")
+        # this is equivalent to the total ejecta thickness for all craters that have been formed
+        # by a specified time t
+        self.deliver_ejecta(init=True) # results stored in self.ej_col_grid
+
+        # Compute initial amount of ice
+        # TODO: compare to prior method of delivering ice
+        # make sure that basin impacts are only being attributed to time steps that are close to the current one
+        self.deliver_ice() # results stored in self.ice_col_grid
+
+        # TODO: should we have an impact gardening step here?
+
+        # Compute depth and fraction of ice
+        self.get_depth_frac()
+
+        # Need to start with t_ind = 1
+        # t_ind cr and t_ind_ct are updated in deliver_ejecta function based on number of craters / cold traps added
+        self.t_ind += 1
+
+        # Load the data and GP for melt fraction interpolation
+        print("Getting GP for melt fraction interpolation...")
+        df = pd.read_csv(cfg.bsed_frac_mean_in, index_col=0, dtype=cfg.dtype)
+        df.columns = df.columns.astype(cfg.dtype)
+        x = df.columns.to_numpy()[1:].astype(np.float64)
+        y = df.index.to_numpy()[1:].astype(np.float64)
+        nx = len(x)
+        ny = len(y)
+        xx, yy = np.meshgrid(x, y) # these have shape nx x ny
+        xx = xx.reshape((nx*ny))
+        yy = yy.reshape((nx*ny))
+        # skip the first row/column because they're all the same values
+        zz = df.values[1:,1:].astype(np.float64).reshape((nx*ny))
+        train_x = np.vstack((xx, yy)).T
+        train_x_t = Tensor(train_x)
+        train_z_t = Tensor(zz)
+
+        gp_pth = cfg.bsed_frac_mean_in.replace('.csv', '_gp.pth')
+        state_dict = load_t(gp_pth)
+        self.lik = GaussianLikelihood()
+        self.melt_frac_gp = GP(train_x_t, train_z_t, self.lik)
+        self.melt_frac_gp.load_state_dict(state_dict)
+
+        # save the initial results
+        self.save_output()
+
+    
+    # update crater list and PSR masks
+    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None, random_ages=True):
+
+        # crater info
         if crater_db is None:
             df_craters = read_crater_list(cfg)
             df_craters["isbasin"] = False
@@ -87,7 +151,11 @@ class MoonPIES():
         # Combine DataFrames and randomize ages
         # randomization function also sorts based on age and name
         df = pd.concat([df_craters, df_basins])
-        self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
+        if random_ages:
+            self.df = randomize_crater_ages(df, cfg.timestep, self.rng)
+        else:
+            # TODO: sort the dataframe based on age and name
+            pass
         # print(len(self.df))
 
         if self.cfg.coldtrap_names is None:
@@ -163,63 +231,6 @@ class MoonPIES():
         # now add values for remaining PSR regions based on constant value
         psr_no_ct = self.psr & ~np.any(self.coldtrap_mask, axis=0)
         self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
-
-        # Pre-compute overturn depth
-        print("Getting overturn depth time...")
-        self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
-        # print(self.overturn.shape) # 425 (time)
-
-        # initial values based on start time of sim
-        self.t = float(self.cfg.timestart)
-        self.t_ind = 0 # time index into time array
-        self.t_ind_cr = 0 # index into crater list
-        self.t_ind_ct = 0 # index into cold trap list
-
-        # Compute initial ejecta thickness
-        print("Getting initial values of ejecta and ice")
-        # this is equivalent to the total ejecta thickness for all craters that have been formed
-        # by a specified time t
-        self.deliver_ejecta(init=True) # results stored in self.ej_col_grid
-
-        # Compute initial amount of ice
-        # TODO: compare to prior method of delivering ice
-        # make sure that basin impacts are only being attributed to time steps that are close to the current one
-        self.deliver_ice() # results stored in self.ice_col_grid
-
-        # TODO: should we have an impact gardening step here?
-
-        # Compute depth and fraction of ice
-        self.get_depth_frac()
-
-        # Need to start with t_ind = 1
-        # t_ind cr and t_ind_ct are updated in deliver_ejecta function based on number of craters / cold traps added
-        self.t_ind += 1
-
-        # Load the data and GP for melt fraction interpolation
-        print("Getting GP for melt fraction interpolation...")
-        df = pd.read_csv(cfg.bsed_frac_mean_in, index_col=0, dtype=cfg.dtype)
-        df.columns = df.columns.astype(cfg.dtype)
-        x = df.columns.to_numpy()[1:].astype(np.float64)
-        y = df.index.to_numpy()[1:].astype(np.float64)
-        nx = len(x)
-        ny = len(y)
-        xx, yy = np.meshgrid(x, y) # these have shape nx x ny
-        xx = xx.reshape((nx*ny))
-        yy = yy.reshape((nx*ny))
-        # skip the first row/column because they're all the same values
-        zz = df.values[1:,1:].astype(np.float64).reshape((nx*ny))
-        train_x = np.vstack((xx, yy)).T
-        train_x_t = Tensor(train_x)
-        train_z_t = Tensor(zz)
-
-        gp_pth = cfg.bsed_frac_mean_in.replace('.csv', '_gp.pth')
-        state_dict = load_t(gp_pth)
-        self.lik = GaussianLikelihood()
-        self.melt_frac_gp = GP(train_x_t, train_z_t, self.lik)
-        self.melt_frac_gp.load_state_dict(state_dict)
-
-        # save the initial results
-        self.save_output()
         
         
     # update for one time step at a time
