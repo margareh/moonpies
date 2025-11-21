@@ -211,7 +211,7 @@ def ages2time(
 
 
 # Geospatial helpers
-def get_grid_arrays(cfg):
+def get_grid_arrays(cfg, half=False):
     """
     Return sparse meshgrid (grdy, grdx) from sizes [m], steps [m] and dtype.
 
@@ -220,12 +220,20 @@ def get_grid_arrays(cfg):
     """
     ysize, ystep = cfg.grdysize, cfg.grdstep
     xsize, xstep = cfg.grdxsize, cfg.grdstep
-    grdy, grdx = np.meshgrid(
-        np.arange(ysize, -ysize, -ystep, dtype=cfg.dtype),
-        np.arange(-xsize, xsize, xstep, dtype=cfg.dtype),
-        sparse=True,
-        indexing="ij",
-    )
+    if half:
+        grdy, grdx = np.meshgrid(
+            np.arange(-ysize, 0, -ystep, dtype=cfg.dtype),
+            np.arange(0, xsize, xstep, dtype=cfg.dtype),
+            sparse=True,
+            indexing='ij'
+        )
+    else:
+        grdy, grdx = np.meshgrid(
+            np.arange(ysize, -ysize, -ystep, dtype=cfg.dtype),
+            np.arange(-xsize, xsize, xstep, dtype=cfg.dtype),
+            sparse=True,
+            indexing="ij",
+        )
     return grdy, grdx
 
 
