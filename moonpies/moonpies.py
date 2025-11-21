@@ -28,16 +28,16 @@ from gpytorch.likelihoods import GaussianLikelihood
 
 from moonpies import config
 
-from moonpies.utils.gp import GP, gp_predict
-from moonpies.utils.utils import vprint, clear_cache, get_grid_arrays
-from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
-from moonpies.utils.load_data import read_crater_list, read_basin_list, load_tifs
-from moonpies.utils.save_output import get_gc_dist_grid
+from .utils.gp import GP, gp_predict
+from .utils.utils import vprint, clear_cache, get_grid_arrays
+from .utils.rv import get_rng, randomize_crater_ages, random_icy_basins
+from .utils.load_data import read_crater_list, read_basin_list, load_tifs
+from .utils.save_output import get_gc_dist_grid
 
-from moonpies.processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp
-from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet
-from moonpies.processes.volcanic import get_volcanic_ice
-from moonpies.processes.solar_wind import get_solar_wind_ice
+from .processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp
+from .processes.impact import overturn_depth_time, get_impact_ice, get_impact_ice_comet
+from .processes.volcanic import get_volcanic_ice
+from .processes.solar_wind import get_solar_wind_ice
 
 
 class MoonPIES():
