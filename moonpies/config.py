@@ -70,7 +70,7 @@ POLE_DEFAULTS = {
             'Rozhdestvenskiy W', 'Sylvester')
     },
 }
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class Cfg:
     """Class to configure a mixing model run."""
     run_name: str = 'moonpies'  # Name of the current run
