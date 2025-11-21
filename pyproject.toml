@@ -43,5 +43,5 @@ moonpies_orig = "moonpies.cli:run_orig"
 requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["moonpies"]
+[tool.setuptools]
+packages = ["moonpies", "moonpies.utils", "moonpies.data", "moonpies.models", "moonpies.processes"]
