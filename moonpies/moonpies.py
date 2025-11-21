@@ -138,19 +138,23 @@ class MoonPIES():
         df_craters["isbasin"] = False
         df_craters["icy_impactor"] = "no"
 
-        if basin_db is None:
-            df_basins = read_basin_list(self.cfg)
-            # n_basin = len(df_basins)
-            # print(n_basin) # 27
+        if self.cfg.ejecta_basins or self.cfg.impact_ice_basins:
+            if basin_db is None:
+                df_basins = read_basin_list(self.cfg)
+                # n_basin = len(df_basins)
+                # print(n_basin) # 27
+            else:
+                df_basins = copy.copy(basin_db)
+
+            df_basins["isbasin"] = True
+            df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
+
+            # Combine DataFrames and randomize ages if upper and lower bounds are not the same
+            # randomization function also sorts based on age and name
+            df = pd.concat([df_craters, df_basins])
         else:
-            df_basins = copy.copy(basin_db)
+            df = copy.copy(df_craters)
 
-        df_basins["isbasin"] = True
-        df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
-
-        # Combine DataFrames and randomize ages if upper and lower bounds are not the same
-        # randomization function also sorts based on age and name
-        df = pd.concat([df_craters, df_basins])
         self.df = randomize_crater_ages(df, self.cfg.timestep, self.rng)
         # print(len(self.df))
 
