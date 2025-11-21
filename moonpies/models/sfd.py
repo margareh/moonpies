@@ -19,6 +19,7 @@ def neukum(diam, cfg):
     diam (float): Crater diameter [m].
     cfg (Cfg): Config object.
     """
+    cfg = cfg[0]
     if cfg.neukum_pf_new:
         a_vals = cfg.neukum_pf_a_2001
     else:
@@ -66,8 +67,8 @@ def num_craters_chronology(mindiam, maxdiam, time, cfg):
     Return number of craters [m^-2 yr^-1] mindiam and maxdiam at each time.
     """
     # Compute number of craters from neukum pf
-    fmax = neukum(mindiam, cfg)
-    fmin = neukum(maxdiam, cfg)
+    fmax = neukum(mindiam, tuple(cfg))
+    fmin = neukum(maxdiam, tuple(cfg))
     count = (fmax - fmin) * cfg.sa_moon * cfg.timestep
 
     # Scale count by impact flux relative to present day flux
