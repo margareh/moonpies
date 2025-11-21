@@ -34,8 +34,8 @@ from moonpies.utils.rv import get_rng, randomize_crater_ages, random_icy_basins
 from moonpies.utils.load_data import read_crater_list, read_basin_list, load_tifs
 from moonpies.utils.save_output import get_gc_dist_grid
 
-from moonpies.processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp, get_melt_frac
-from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet, garden_ice_column, remove_ice_overturn
+from moonpies.processes.ballistic import get_ejecta_thickness, get_mixing_ratio_oberbeck, ejecta_temp
+from moonpies.processes.impact import overturn_depth_time, get_ballistic_hop_coldtraps, get_impact_ice, get_impact_ice_comet
 from moonpies.processes.volcanic import get_volcanic_ice
 from moonpies.processes.solar_wind import get_solar_wind_ice
 
@@ -66,6 +66,7 @@ class MoonPIES():
         # print(self.ice_col_grid.shape) # 608 x 608
 
         # Load data and initialize useful things
+        self.psr_area = np.zeros((self.grdy.shape[0], self.grdx.shape[1]))
         self.update_crater_info(crater_db, basin_db, psr_mask)
 
         # Pre-compute overturn depth
@@ -76,8 +77,6 @@ class MoonPIES():
         # initial values based on start time of sim
         self.t = float(self.cfg.timestart)
         self.t_ind = 0 # time index into time array
-        self.t_ind_cr = 0 # index into crater list
-        self.t_ind_ct = 0 # index into cold trap list
 
         # Compute initial ejecta thickness
         print("Getting initial values of ejecta and ice")
@@ -96,7 +95,6 @@ class MoonPIES():
         self.get_depth_frac()
 
         # Need to start with t_ind = 1
-        # t_ind cr and t_ind_ct are updated in deliver_ejecta function based on number of craters / cold traps added
         self.t_ind += 1
 
         # Load the data and GP for melt fraction interpolation
@@ -132,21 +130,23 @@ class MoonPIES():
         # crater info
         if crater_db is None:
             df_craters = read_crater_list(self.cfg)
-            df_craters["isbasin"] = False
-            df_craters["icy_impactor"] = "no"
             # n_crater = len(df_craters)
             # print(n_crater) # 24
         else:
             df_craters = copy.copy(crater_db)
+        
+        df_craters["isbasin"] = False
+        df_craters["icy_impactor"] = "no"
 
         if basin_db is None:
             df_basins = read_basin_list(self.cfg)
-            df_basins["isbasin"] = True
-            df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
             # n_basin = len(df_basins)
             # print(n_basin) # 27
         else:
             df_basins = copy.copy(basin_db)
+
+        df_basins["isbasin"] = True
+        df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
 
         # Combine DataFrames and randomize ages if upper and lower bounds are not the same
         # randomization function also sorts based on age and name
@@ -154,8 +154,8 @@ class MoonPIES():
         self.df = randomize_crater_ages(df, self.cfg.timestep, self.rng)
         # print(len(self.df))
 
-        if self.cfg.coldtrap_names is None:
-            self.cfg.coldtrap_names = self.df.index
+        # if self.cfg.coldtrap_names is None:
+        #     self.cfg.coldtrap_names = self.df.index
 
         if not self.cfg.ejecta_basins:
             self.df[~self.df.isbasin].reset_index(drop=True)
@@ -171,6 +171,8 @@ class MoonPIES():
             # currently slope isn't used, so we aren't losing out on that if it isn't provided
             self.psr = copy.copy(psr_mask)
 
+        # TODO: add computation of in_crater and psr_area flags if not already in dataframe
+
         # Pre-compute distances to each crater and masks for craters
         print("Computing crater distances...")
         self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
@@ -181,9 +183,11 @@ class MoonPIES():
         self.coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         for i, row in self.df.iterrows():
-            self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
-            if np.isin(row.cname, self.cfg.coldtrap_names):
-                self.coldtrap_flag[cr_id] = True
+            # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
+            self.crater_mask[cr_id,...] = np.array(row['in_crater'])
+            # if np.isin(row.cname, self.cfg.coldtrap_names):
+            #     self.coldtrap_flag[cr_id] = True
+            self.coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
             cr_id += 1
 
         self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
@@ -191,19 +195,24 @@ class MoonPIES():
         # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608        
 
         # Flag coldtraps and label coldtrap areas
-        n_ct = len(self.cfg.coldtrap_names)
-        
-        self.psr_area = np.zeros((n_ct+1, self.psr.shape[0], self.psr.shape[1]))
+        needs_area = (self.psr_area < 0.0001) * (self.psr)
         ct_id = 0
+        cr_id = 0
         for i, row in self.df.iterrows():
-            if np.isin(row.cname, self.cfg.coldtrap_names):
-                self.psr_area[ct_id,...] = row['psr_area'] * self.coldtrap_mask[ct_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
+            # if np.isin(row.cname, self.cfg.coldtrap_names):
+            if self.coldtrap_flag[cr_id]:
+                self.psr_area += needs_area * row['psr_area'] * self.coldtrap_mask[ct_id]
+                # self.psr_area[ct_id,...] = row['psr_area'] * self.coldtrap_mask[ct_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
                 ct_id += 1
+            cr_id += 1
 
-        # add in area that produces uniform distribution for remaining PSRs
-        psr_no_crater = (self.psr == 1) * ~np.any(self.coldtrap_mask, axis=0)
-        psr_px = np.sum(psr_no_crater)
-        self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
+        needs_area = (self.psr_area < 0.0001) * (self.psr)
+        self.psr_area[needs_area] = np.sum(needs_area) * (self.cfg.grdstep**2)
+
+        # # add in area that produces uniform distribution for remaining PSRs
+        # psr_no_crater = (self.psr == 1) * ~np.any(self.coldtrap_mask, axis=0)
+        # psr_px = np.sum(psr_no_crater)
+        # self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         print("Computing ejecta thicknesses...")
@@ -221,12 +230,13 @@ class MoonPIES():
         # set up ballistic hop efficiency grid
         # first add the values for cold traps
         print("Getting ballistic hop efficiency grid...")
-        bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct, 1, 1))
-        bhops_ct = np.sum(bhops * self.coldtrap_mask, axis=0)
+        self.bhops_grid = self.psr * self.cfg.ballistic_hop_effcy
+        # bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct, 1, 1))
+        # bhops_ct = np.sum(bhops * self.coldtrap_mask, axis=0)
 
-        # now add values for remaining PSR regions based on constant value
-        psr_no_ct = self.psr & ~np.any(self.coldtrap_mask, axis=0)
-        self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
+        # # now add values for remaining PSR regions based on constant value
+        # psr_no_ct = self.psr & ~np.any(self.coldtrap_mask, axis=0)
+        # self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
         
         
     # update for one time step at a time
@@ -398,13 +408,6 @@ class MoonPIES():
         ej_formed = self.ej_thick_grid[crater_flag, ...]
         self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
 
-        # increment indices for craters and PSRs based on how many new craters were formed
-        new_cr = int(np.sum(crater_flag))
-        new_ct = int(np.sum(crater_flag * self.coldtrap_flag))
-
-        self.t_ind_cr += new_cr
-        self.t_ind_ct += new_ct
-
 
     # deliver ice for a given time step t
     def deliver_ice(self):
@@ -450,13 +453,12 @@ class MoonPIES():
         # TODO: is summing correct if there are overlapping sections? no --> less ice because area is in denominator
         # should instead apply ice from each PSR individually, so these regions would be more likely to end up with ice
         # PSR areas for craters + no-crater PSR areas
-        psr_area = np.sum(self.psr_area[:self.t_ind_ct,...], axis=0) + self.psr_area[-1,...]
-        no_psr = psr_area < 0.0001
+        no_psr = self.psr_area < 0.0001
 
         # adjust to be amount per pixel instead of total amount
         # want to set areas without specific ballistic hop efficiency to overall value
         ice_tot = ice_polar + ice_volcanic
-        ice_tot[~no_psr] *= (self.cfg.grdstep**2 / psr_area[~no_psr])
+        ice_tot[~no_psr] *= (self.cfg.grdstep**2 / self.psr_area[~no_psr])
         ice_tot[no_psr] = 0
 
         self.ice_col_grid[self.t_ind,...] = ice_tot
@@ -609,7 +611,7 @@ class MoonPIES():
     # overturn ice for a given time step t and overturn depth d
     def overturn_ice(self, d, first_ejecta=False):
         if self.cfg.impact_gardening_costello:
-            self.garden_ice_d(d, first_ejecta)
+            self.garden_ice_d(d, first_ejecta=first_ejecta)
         else:
             self.erode_ice_cannon(erosion_depth=d)
 

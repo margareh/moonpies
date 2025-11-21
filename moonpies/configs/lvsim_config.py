@@ -1,7 +1,7 @@
 {
     'mode' : 'synthterrain',
-    'crater_csv_in' : 'synthterrain_craters.csv',
-    'psr_spat' : 'psrs.npz',
+    'crater_csv_in' : '',
+    'psr_spat' : '',
     'spatial_data_path' : '',
     'crater_cols' : ('x', 'y', 'diam', 'age','d/D'),
     'grdxsize' : 1000,
