@@ -457,7 +457,7 @@ def _str2py(s, out_path):
     print(f'Wrote to {out_path}')
 
 
-def read_custom_cfg(cfg_path=None, seed=None):
+def read_custom_cfg(cfg_path=None, seed=None, gridsize=None, gridres=None, outpath=None):
     """
     Return Cfg from custom config file at cfg_path. Overwrite seed if given.
     """
@@ -468,6 +468,13 @@ def read_custom_cfg(cfg_path=None, seed=None):
             cfg_dict = ast.literal_eval(f.read())
     if seed is not None:
         cfg_dict['seed'] = seed
+    if gridsize is not None:
+        cfg_dict['grdxsize'] = gridsize
+        cfg_dict['grdysize'] = gridsize
+    if gridres is not None:
+        cfg_dict['grdstep'] = gridres
+    if outpath is not None:
+        cfg_dict['out_path'] = outpath
     return from_dict(cfg_dict)
 
 
