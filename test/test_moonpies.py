@@ -122,7 +122,7 @@ def test_get_crater_pop_regime_C():
 
     # Cannon regime C
     craterDiams = diams  # m
-    craterNum = mp.neukum(craterDiams[0], CFG) - mp.neukum(craterDiams[-1], CFG)
+    craterNum = mp.neukum(craterDiams[0], CFG.neukum_pf_new) - mp.neukum(craterDiams[-1], CFG.neukum_pf_new)
     craterNum = craterNum * (1e7)
     craterNum = craterNum * CFG.sa_moon
     craterNum = craterNum * mp.impact_flux(time_arr) / mp.impact_flux(0)

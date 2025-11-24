@@ -8,7 +8,7 @@ from functools import lru_cache
 
 # Crater/impactor size-frequency helpers
 @lru_cache(6)
-def neukum(diam, cfg):
+def neukum(diam, new):
     """
     Return number of craters per m^2 per yr at diam [m] (eqn. 2, Neukum 2001).
 
@@ -19,11 +19,14 @@ def neukum(diam, cfg):
     diam (float): Crater diameter [m].
     cfg (Cfg): Config object.
     """
-    cfg = cfg[0]
-    if cfg.neukum_pf_new:
-        a_vals = cfg.neukum_pf_a_2001
+    # if cfg.neukum_pf_new:
+    #     a_vals = cfg.neukum_pf_a_2001
+    # else:
+    #     a_vals = cfg.neukum_pf_a_1983
+    if new:
+        a_vals = (-3.0876, -3.557528, 0.781027, 1.021521, -0.156012, -0.444058, 0.019977, 0.086850, -0.005874, -0.006809, 8.25e-4, 5.54e-5)
     else:
-        a_vals = cfg.neukum_pf_a_1983
+        a_vals = (-3.0768, -3.6269, 0.4366, 0.7935, 0.0865, -0.2649, -0.0664, 0.0379, 0.0106, -0.0022, -5.18e-4, 3.97e-5)
     diam = diam * 1e-3  # [m] -> [km]
     j = np.arange(len(a_vals))
     ncraters = 10 ** np.sum(a_vals * np.log10(diam) ** j)  # [km^-2 Ga^-1]
@@ -67,8 +70,8 @@ def num_craters_chronology(mindiam, maxdiam, time, cfg):
     Return number of craters [m^-2 yr^-1] mindiam and maxdiam at each time.
     """
     # Compute number of craters from neukum pf
-    fmax = neukum(mindiam, tuple(cfg))
-    fmin = neukum(maxdiam, tuple(cfg))
+    fmax = neukum(mindiam, cfg.neukum_pf_new)
+    fmin = neukum(maxdiam, cfg.neukum_pf_new)
     count = (fmax - fmin) * cfg.sa_moon * cfg.timestep
 
     # Scale count by impact flux relative to present day flux

@@ -292,6 +292,29 @@ class MoonPIES():
             i += 1
             self.t_ind += 1
 
+    # run through all time steps
+    def run_between(self, start_time, end_time):
+        vprint(self.cfg, "Starting main loop...")
+        
+        # Loop through all timesteps
+        i = 0
+        self.t = start_time
+        while self.t > end_time:
+
+            # decrement time step
+            self.t -= self.cfg.timestep
+
+            print("On time step %d" % (int(self.t)))
+            self.update(self.overturn[i])
+            
+            # save output every nth timestep
+            if i % self.cfg.save_every_n == 0:
+                self.save_output()
+
+            # increment counter and time index
+            i += 1
+            self.t_ind += 1
+
     # save the output
     def save_output(self):
 
