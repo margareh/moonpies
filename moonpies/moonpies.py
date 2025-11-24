@@ -181,7 +181,7 @@ class MoonPIES():
         print("Computing crater distances...")
         self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
         self.crater_mask = np.zeros_like(self.crater_dist_grid)
-        print(self.grdx.shape)
+        # print(self.grdx.shape)
         # print(self.crater_mask.shape) # 51 x 608 x 608
 
         print("Computing crater masks")
