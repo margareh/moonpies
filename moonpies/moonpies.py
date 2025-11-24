@@ -59,7 +59,7 @@ class MoonPIES():
         # Setup ice distribution grid structure
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
-        self.grdy, self.grdx = get_grid_arrays(cfg)
+        self.grdy, self.grdx = get_grid_arrays(cfg, half=True)
         # this has a channel per time step (layer)
         self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
@@ -181,6 +181,7 @@ class MoonPIES():
         print("Computing crater distances...")
         self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
         self.crater_mask = np.zeros_like(self.crater_dist_grid)
+        print(self.grdx.shape)
         # print(self.crater_mask.shape) # 51 x 608 x 608
 
         print("Computing crater masks")
@@ -188,6 +189,7 @@ class MoonPIES():
         cr_id = 0
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
+            # print(np.array(row['in_crater']).shape)
             self.crater_mask[cr_id,...] = np.array(row['in_crater'])
             # if np.isin(row.cname, self.cfg.coldtrap_names):
             #     self.coldtrap_flag[cr_id] = True
