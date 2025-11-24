@@ -2,7 +2,7 @@
     'mode' : 'synthterrain',
     'crater_csv_in' : '',
     'psr_spat' : '',
-    'data_path' : '../data/',
+    'data_path' : '../moonpies/moonpies/data/',
     'spatial_data_path' : '',
     'crater_cols' : ('x', 'y', 'diam', 'age','d/D'),
     'grdxsize' : 1000,
