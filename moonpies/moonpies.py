@@ -348,6 +348,7 @@ class MoonPIES():
         if out is None:
             if os.path.exists(self.cfg.out_path) == False:
                 os.makedirs(self.cfg.out_path)
+            out = copy.copy(self.cfg.out_path)
         elif os.path.exists(out) == False:
             os.makedirs(out)
 
