@@ -222,17 +222,17 @@ def get_grid_arrays(cfg, half=False):
     xsize, xstep = cfg.grdxsize, cfg.grdstep
     if half:
         grdy, grdx = np.meshgrid(
-            np.arange(ysize, 0, -ystep, dtype=cfg.dtype),
-            np.arange(0, xsize, xstep, dtype=cfg.dtype),
-            sparse=True,
-            indexing='ij'
-        )
-    else:
-        grdy, grdx = np.meshgrid(
             np.arange(ysize, -ysize, -ystep, dtype=cfg.dtype),
             np.arange(-xsize, xsize, xstep, dtype=cfg.dtype),
             sparse=True,
             indexing="ij",
+        )
+    else:
+        grdy, grdx = np.meshgrid(
+            np.arange(ysize, 0, -ystep, dtype=cfg.dtype),
+            np.arange(0, xsize, xstep, dtype=cfg.dtype),
+            sparse=True,
+            indexing='ij'
         )
     return grdy, grdx
 

@@ -145,6 +145,7 @@ class Cfg:
     grdxsize: int = 304e3  # [m] originally 400e3
     grdysize: int = 304e3  # [m] originally 400e3
     grdstep: int = 1e3  # [m / pixel]
+    halfgrid: bool = True # whether size represents half of grid or full grid
     timestart: int = 4.25e9  # [yr]
     timeend: int = 0  # [yr]
     timestep: int = 10e6  # [yr]

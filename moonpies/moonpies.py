@@ -59,7 +59,7 @@ class MoonPIES():
         # Setup ice distribution grid structure
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
-        self.grdy, self.grdx = get_grid_arrays(cfg, half=True)
+        self.grdy, self.grdx = get_grid_arrays(cfg, half=cfg.halfgrid)
         # this has a channel per time step (layer)
         self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
@@ -198,22 +198,24 @@ class MoonPIES():
 
         self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
         self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr == 1, axis=0)
-        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608        
+        # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
 
         # Flag coldtraps and label coldtrap areas
-        needs_area = (self.psr_area < 0.0001) * (self.psr)
-        ct_id = 0
-        cr_id = 0
+        psr_area = np.zeros_like(self.coldtrap_mask)
+        cr_id = ct_id = 0
         for i, row in self.df.iterrows():
-            # if np.isin(row.cname, self.cfg.coldtrap_names):
             if self.coldtrap_flag[cr_id]:
-                self.psr_area += needs_area * row['psr_area'] * self.coldtrap_mask[ct_id]
-                # self.psr_area[ct_id,...] = row['psr_area'] * self.coldtrap_mask[ct_id] # TODO: this controls the distribution of ice, should it be added to all psrs?
+                psr_area[ct_id] = row['psr_area'] * self.coldtrap_mask[ct_id]
                 ct_id += 1
             cr_id += 1
+        
+        self.psr_area = np.maximum(np.max(psr_area, axis=0), self.psr_area)
 
-        needs_area = (self.psr_area < 0.0001) * (self.psr)
-        self.psr_area[needs_area] = np.sum(needs_area) * (self.cfg.grdstep**2)
+        # fig, ax = plt.subplots(1,2, figsize=(20,10))
+        # ax[0].imshow(np.any(self.crater_mask, axis=0), cmap='Oranges', alpha=0.5)
+        # ax[0].imshow(np.any(self.coldtrap_mask, axis=0), cmap='Blues', alpha=0.5)
+        # ax[1].imshow(self.psr_area)
+        # plt.show()
 
         # # add in area that produces uniform distribution for remaining PSRs
         # psr_no_crater = (self.psr == 1) * ~np.any(self.coldtrap_mask, axis=0)
@@ -304,7 +306,7 @@ class MoonPIES():
             # decrement time step
             self.t -= self.cfg.timestep
 
-            print("On time step %d" % (int(self.t)))
+            print("On time step %4.2f Myr" % (self.t / 1e6))
             self.update(self.overturn[i])
             
             # save output every nth timestep
@@ -372,7 +374,11 @@ class MoonPIES():
 
         # lrbt
         # from tif file (pre-downsample): -304000, 304000, -304000, 304000
-        map_ext = [-304000, 304000, -304000, 304000]
+        # map_ext = [-304000, 304000, -304000, 304000]
+        if self.cfg.halfgrid:
+            map_ext = [-self.cfg.grdxsize, self.cfg.grdxsize, -self.cfg.grdysize, self.cfg.grdysize]
+        else:
+            map_ext = [0, self.cfg.grdxsize, 0, self.cfg.grdysize]
 
         # # display the psr and slope data (to see what it looks like)
         # fig, ax = plt.subplots(1, 2, figsize=(20, 10))
@@ -388,7 +394,7 @@ class MoonPIES():
         fig, ax = plt.subplots(figsize=(10,10))
         ax.imshow(self.psr, cmap='binary', extent=map_ext)
         ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
-        ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
+        # ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
         # ax.axis('off')
         plt.savefig(os.path.join(out, fig2_name), bbox_inches='tight', dpi=100)
         plt.close()
@@ -428,14 +434,20 @@ class MoonPIES():
         # make sure time is same data type because otherwise functions below won't work
         t = np.array([self.t]).astype(self.cfg.dtype)
         ej_ages = self.df.age.values
+        # print(ej_ages / 1e6)
+        # print(t)
+        # print(t+self.cfg.timestep)
 
         if init:
             crater_flag = (ej_ages >= t)
         else:
             # formed between previous time step and current one
             crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
+        # print(crater_flag)
 
         ej_formed = self.ej_thick_grid[crater_flag, ...]
+        # plt.imshow(np.sum(ej_formed, axis=0))
+        # plt.show()
         self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
 
 
@@ -490,6 +502,9 @@ class MoonPIES():
         ice_tot = ice_polar + ice_volcanic
         ice_tot[~no_psr] *= (self.cfg.grdstep**2 / self.psr_area[~no_psr])
         ice_tot[no_psr] = 0
+
+        # plt.imshow(ice_tot)
+        # plt.show()
 
         self.ice_col_grid[self.t_ind,...] = ice_tot
         # print(self.ice_col_grid.shape) # 608 x 608
