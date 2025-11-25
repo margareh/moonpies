@@ -328,21 +328,26 @@ class MoonPIES():
         self.show(out=outpath)
 
         # format_save_outputs(self.strat_cols, self.time_arr, self.df, self.cfg)
-        if self.t == self.cfg.timeend:
-            # store everything
-            np.savez(os.path.join(outpath, 'data.npz'),
-                    ice_depth=self.depth,
-                    ice_frac=self.frac,
-                    ice_col_grid=self.ice_col_grid,
-                    ej_col_grid=self.ej_col_grid,
-                    time_arr=self.time_arr)
-        else:
-            # only store the depth
-            np.savez(os.path.join(outpath, 'data.npz'),
-                    ice_depth=self.depth,
-                    ice_frac=self.frac,
-                    time_arr=self.time_arr)
-
+        # if self.t == self.cfg.timeend:
+        #     # store everything
+        #     np.savez(os.path.join(outpath, 'data.npz'),
+        #             ice_depth=self.depth,
+        #             ice_frac=self.frac,
+        #             ice_col_grid=self.ice_col_grid,
+        #             ej_col_grid=self.ej_col_grid,
+        #             time_arr=self.time_arr)
+        # else:
+        #     # only store the depth
+        #     np.savez(os.path.join(outpath, 'data.npz'),
+        #             ice_depth=self.depth,
+        #             ice_frac=self.frac,
+        #             time_arr=self.time_arr)
+        np.savez(os.path.join(outpath, 'data.npz'),
+                 ice_depth=self.depth,
+                 ice_frac=self.frac,
+                 ice_col_grid=self.ice_col_grid,
+                 ej_col_grid=self.ej_col_grid,
+                 time_arr=self.time_arr)
 
     # plot some helpful things
     def show(self, out=None):
@@ -500,11 +505,7 @@ class MoonPIES():
         # adjust to be amount per pixel instead of total amount
         # want to set areas without specific ballistic hop efficiency to overall value
         ice_tot = ice_polar + ice_volcanic
-        ice_tot[~no_psr] *= (self.cfg.grdstep**2 / self.psr_area[~no_psr])
         ice_tot[no_psr] = 0
-
-        # plt.imshow(ice_tot)
-        # plt.show()
 
         self.ice_col_grid[self.t_ind,...] = ice_tot
         # print(self.ice_col_grid.shape) # 608 x 608
