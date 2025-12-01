@@ -125,7 +125,7 @@ class MoonPIES():
 
     
     # update crater list and PSR masks
-    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None):
+    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None, new_ej=None, new_ice=None):
 
         # crater info
         if crater_db is None:
@@ -245,6 +245,12 @@ class MoonPIES():
         # # now add values for remaining PSR regions based on constant value
         # psr_no_ct = self.psr & ~np.any(self.coldtrap_mask, axis=0)
         # self.bhops_grid = psr_no_ct * self.cfg.ballistic_hop_effcy + bhops_ct
+
+        # Update previous ejecta and ice column values
+        if new_ej is not None:
+            self.ej_col_grid[:self.t_ind,...] = new_ej
+        if new_ice is not None:
+            self.ice_col_grid[:self.t_ind,...] = new_ice
         
         
     # update for one time step at a time
