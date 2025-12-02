@@ -179,37 +179,44 @@ class MoonPIES():
 
         # Pre-compute distances to each crater and masks for craters
         print("Computing crater distances...")
-        self.crater_dist_grid = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
-        self.crater_mask = np.zeros_like(self.crater_dist_grid)
+        self.dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
+        cr_id = 0
+        for i, row in self.df.iterrows():
+            mask = self.dists_masked[cr_id,...] < row[['rad']].values
+            self.dists_masked[cr_id, mask] = np.nan
+            cr_id += 1
+        
         # print(self.grdx.shape)
         # print(self.crater_mask.shape) # 51 x 608 x 608
 
-        print("Computing crater masks")
-        self.coldtrap_flag = np.full((len(self.df)), False)
+        print("Computing PSR area...")
+        crater_mask = np.zeros_like(self.dists_masked)
+        psr_area = np.zeros_like(self.dists_masked)
+        coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
             # print(np.array(row['in_crater']).shape)
-            self.crater_mask[cr_id,...] = np.array(row['in_crater'])
+            crater_mask[cr_id,...] = np.array(row['in_crater'])
             # if np.isin(row.cname, self.cfg.coldtrap_names):
             #     self.coldtrap_flag[cr_id] = True
-            self.coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
+            coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
+            if coldtrap_flag[cr_id]:
+                ct_mask = crater_mask[cr_id,...] * (self.psr == 1)
+                psr_area[cr_id] = row['psr_area'] * ct_mask
             cr_id += 1
 
-        self.coldtrap_inds = np.where(self.coldtrap_flag)[0]
-        self.coldtrap_mask = self.crater_mask[self.coldtrap_inds,...] * np.expand_dims(self.psr == 1, axis=0)
+        self.psr_area = np.max(psr_area, axis=0)
+
+        craters = crater_mask[self.df['isbasin'] == False,...]
+        crater_ages = self.df[self.df['isbasin'] == False]['age']
+        basins = crater_mask[self.df['isbasin'],...]
+        basin_ages = self.df[self.df['isbasin']]['age']
+        self.crater_mask_all = np.any(craters[crater_ages >= int(self.t),...], axis=0)
+        self.basin_mask_all = np.any(basins[basin_ages >= int(self.t),...], axis=0)
+
+        # self.coldtrap_mask = self.crater_mask[np.where(coldtrap_flag)[0],...] * np.expand_dims(self.psr == 1, axis=0)
         # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
-
-        # Flag coldtraps and label coldtrap areas
-        psr_area = np.zeros_like(self.coldtrap_mask)
-        cr_id = ct_id = 0
-        for i, row in self.df.iterrows():
-            if self.coldtrap_flag[cr_id]:
-                psr_area[ct_id] = row['psr_area'] * self.coldtrap_mask[ct_id]
-                ct_id += 1
-            cr_id += 1
-        
-        self.psr_area = np.maximum(np.max(psr_area, axis=0), self.psr_area)
 
         # fig, ax = plt.subplots(1,2, figsize=(20,10))
         # ax[0].imshow(np.any(self.crater_mask, axis=0), cmap='Oranges', alpha=0.5)
@@ -225,20 +232,13 @@ class MoonPIES():
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
         print("Computing ejecta thicknesses...")
         rad = self.df.rad.values[:, np.newaxis, np.newaxis]
-        # dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg)
-        self.dists_masked = copy.copy(self.crater_dist_grid)
-        cr_id = 0
-        for i, row in self.df.iterrows():
-            mask = self.dists_masked[cr_id,...] < row[['rad']].values
-            self.dists_masked[cr_id, mask] = np.nan
-            cr_id += 1
         self.ej_thick_grid = get_ejecta_thickness(self.dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
 
         # set up ballistic hop efficiency grid
         # first add the values for cold traps
-        print("Getting ballistic hop efficiency grid...")
-        self.bhops_grid = self.psr * self.cfg.ballistic_hop_effcy
+        # print("Getting ballistic hop efficiency grid...")
+        
         # bhops = get_ballistic_hop_coldtraps(list(self.cfg.coldtrap_names), self.cfg).reshape((n_ct, 1, 1))
         # bhops_ct = np.sum(bhops * self.coldtrap_mask, axis=0)
 
@@ -359,13 +359,13 @@ class MoonPIES():
         elif os.path.exists(out) == False:
             os.makedirs(out)
 
-        # limit output to only craters within a specific time range
-        craters = self.crater_mask[self.df['isbasin'] == False,...]
-        crater_ages = self.df[self.df['isbasin'] == False]['age']
-        basins = self.crater_mask[self.df['isbasin'],...]
-        basin_ages = self.df[self.df['isbasin']]['age']
-        crater_mask_all = np.any(craters[crater_ages >= int(self.t),...], axis=0)
-        basin_mask_all = np.any(basins[basin_ages >= int(self.t),...], axis=0)
+        # # limit output to only craters within a specific time range
+        # craters = self.crater_mask[self.df['isbasin'] == False,...]
+        # crater_ages = self.df[self.df['isbasin'] == False]['age']
+        # basins = self.crater_mask[self.df['isbasin'],...]
+        # basin_ages = self.df[self.df['isbasin']]['age']
+        # crater_mask_all = np.any(craters[crater_ages >= int(self.t),...], axis=0)
+        # basin_mask_all = np.any(basins[basin_ages >= int(self.t),...], axis=0)
 
         # ice and ejecta
         ice_col_all = np.sum(self.ice_col_grid[:(self.t_ind+1),...], axis=0)
@@ -398,8 +398,8 @@ class MoonPIES():
 
         fig, ax = plt.subplots(figsize=(10,10))
         ax.imshow(self.psr, cmap='binary', extent=map_ext)
-        ax.imshow(crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
-        # ax.imshow(basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
+        ax.imshow(self.crater_mask_all, cmap='Oranges', alpha=0.5, extent=map_ext)
+        # ax.imshow(self.basin_mask_all, cmap='Blues', alpha=0.5, extent=map_ext)
         # ax.axis('off')
         plt.savefig(os.path.join(out, fig2_name), bbox_inches='tight', dpi=100)
         plt.close()
@@ -489,8 +489,7 @@ class MoonPIES():
         # PSR represents the efficiency? (i.e. is it a ratio or is it an overall amount)
         # currently assuming we can use the efficiency at all locations in the PSR as is
         if self.cfg.ballistic_hop_moores:
-            # need to remove the constant efficiency factor that was previously applied to ice
-            ice_polar = self.bhops_grid * (ice_polar / self.cfg.ballistic_hop_effcy)
+            ice_polar = self.psr * self.cfg.ballistic_hop_effcy * ice_polar
         else:
             ice_polar = np.ones_like(self.psr) * ice_polar
 
