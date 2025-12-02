@@ -56,6 +56,10 @@ class MoonPIES():
         # Setup time array
         self.time_arr = np.arange(cfg.timestart, cfg.timeend-cfg.timestep, -cfg.timestep, dtype=cfg.dtype)
 
+        # initial values based on start time of sim
+        self.t = float(self.cfg.timestart)
+        self.t_ind = 0 # time index into time array
+
         # Setup ice distribution grid structure
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
@@ -73,10 +77,6 @@ class MoonPIES():
         print("Getting overturn depth time...")
         self.overturn = overturn_depth_time(self.time_arr, self.cfg) # overturn depth by time
         # print(self.overturn.shape) # 425 (time)
-
-        # initial values based on start time of sim
-        self.t = float(self.cfg.timestart)
-        self.t_ind = 0 # time index into time array
 
         # Compute initial ejecta thickness
         print("Getting initial values of ejecta and ice")
