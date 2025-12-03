@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from multiprocessing import Pool
 from torch import Tensor
 from torch import load as load_t
 from gpytorch.likelihoods import GaussianLikelihood
@@ -39,7 +40,19 @@ from .processes.impact import overturn_depth_time, get_impact_ice, get_impact_ic
 from .processes.volcanic import get_volcanic_ice
 from .processes.solar_wind import get_solar_wind_ice
 
+# helper function for multiprocessing
+# calculate ejecta thickness from all craters for a given pixel
+def get_ejecta_mp(args):
+    df = args[0] # index of crater to use
+    x = np.array(args[1])
+    y = np.array(args[2])
+    cfg = args[3]
+    dists = get_gc_dist_grid(df, x, y, cfg, mask=True).reshape((len(df))) # ncrater
+    rad = df.rad.values
+    ej_thick_grid = np.sum(get_ejecta_thickness(dists, rad, cfg)) # 1 value
+    return ej_thick_grid
 
+# simulation class
 class MoonPIES():
 
     # initialize the simulation
@@ -64,6 +77,8 @@ class MoonPIES():
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
         self.grdy, self.grdx = get_grid_arrays(cfg, half=cfg.halfgrid)
+        print(self.grdx)
+        print(self.grdy)
         # this has a channel per time step (layer)
         self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
@@ -178,13 +193,13 @@ class MoonPIES():
         # TODO: add computation of in_crater and psr_area flags if not already in dataframe
 
         # Pre-compute distances to each crater and masks for craters
-        print("Computing crater distances...")
-        self.dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
-        cr_id = 0
-        for i, row in self.df.iterrows():
-            mask = self.dists_masked[cr_id,...] < row[['rad']].values
-            self.dists_masked[cr_id, mask] = np.nan
-            cr_id += 1
+        # print("Computing crater distances...")
+        # self.dists_masked = get_gc_dist_grid(self.df, self.grdx, self.grdy, self.cfg, mask=False)
+        # cr_id = 0
+        # for i, row in self.df.iterrows():
+        #     mask = self.dists_masked[cr_id,...] < row[['rad']].values
+        #     self.dists_masked[cr_id, mask] = np.nan
+        #     cr_id += 1
 
         print("Computing PSR areas")
         self.crater_mask_all = np.zeros_like(self.psr)
@@ -229,9 +244,9 @@ class MoonPIES():
         # self.psr_area[-1,psr_no_crater] = psr_px * (self.cfg.grdstep**2)
 
         # Ejecta thickness produced by each crater on grid (3D array: NX, NY, NC)
-        print("Computing ejecta thicknesses...")
-        rad = self.df.rad.values[:, np.newaxis, np.newaxis]
-        self.ej_thick_grid = get_ejecta_thickness(self.dists_masked, rad, self.cfg)
+        # print("Computing ejecta thicknesses...")
+        # rad = self.df.rad.values[:, np.newaxis, np.newaxis]
+        # self.ej_thick_grid = get_ejecta_thickness(self.dists_masked, rad, self.cfg)
         # print(self.ej_thick_grid.shape) # 51 x 608 x 608
 
         # set up ballistic hop efficiency grid
@@ -437,22 +452,29 @@ class MoonPIES():
         
         # make sure time is same data type because otherwise functions below won't work
         t = np.array([self.t]).astype(self.cfg.dtype)
-        ej_ages = self.df.age.values
+        # ej_ages = self.df.age.values
         # print(ej_ages / 1e6)
         # print(t)
         # print(t+self.cfg.timestep)
 
         if init:
-            crater_flag = (ej_ages >= t)
+            # crater_flag = (ej_ages >= t)
+            df = self.df[(self.df.age >= t)]
         else:
             # formed between previous time step and current one
-            crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
+            # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
+            df = self.df[(self.df.age >= t) & (self.df.age < t+self.cfg.timestep)]
         # print(crater_flag)
 
-        ej_formed = self.ej_thick_grid[crater_flag, ...]
+        # ej_formed = self.ej_thick_grid[crater_flag, ...]
         # plt.imshow(np.sum(ej_formed, axis=0))
         # plt.show()
-        self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
+        m, n = self.psr.shape
+        with Pool() as p:
+            args = [(df, x, y, self.cfg) for x in self.grdx for y in self.grdy]
+            ej_formed = p.map(get_ejecta_mp, args)
+        self.ej_col_grid[self.t_ind,...] = np.array(ej_formed).reshape((m, n))
+        # self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
 
 
     # deliver ice for a given time step t
@@ -534,51 +556,71 @@ class MoonPIES():
         
         # flag which craters were created during this time period
         t = np.array([self.t]).astype(self.cfg.dtype)
-        ej_ages = self.df.age.values
-        crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
+        # ej_ages = self.df.age.values
+        # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
         # print(self.df.cname.values)
         # print(self.df.lat.values)
         # print(self.df.lon.values)
         # print(crater_flag)
+
+        # formed between previous time step and current one
+        # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
+        df = self.df[(self.df.age >= t) & (self.df.age < t+self.cfg.timestep)]
         
         # only run if we're using ballistic sedimentation and there are 
         # cratering events in this time period
-        if len(np.argwhere(crater_flag)) > 0 and self.cfg.ballistic_sed:
+        if len(df) > 0 and self.cfg.ballistic_sed:
 
             # compute ballistic sedimentation depth and fraction
-            dists_t = self.dists_masked[crater_flag,...] # should be n x 608 x 608 with n = sum(crater_flag)
-            mixing_ratio = get_mixing_ratio_oberbeck(dists_t, self.cfg) # n x 608 x 608
+            # dists_t = self.dists_masked[crater_flag,...] # should be n x 608 x 608 with n = sum(crater_flag)
+            # mixing_ratio = get_mixing_ratio_oberbeck(dists_t, self.cfg) # n x 608 x 608
             # print(mixing_ratio.shape) # 1 x 608 x 608
             # print(np.min(mixing_ratio)) # 14.56 for first iter
             # print(np.max(mixing_ratio)) # 16.83 for first iter
             # curr_df = self.df[crater_flag]
-            ej_temp = ejecta_temp(self.df[crater_flag], self.cfg) # n
+            ej_temp = ejecta_temp(df, self.cfg) # n
             # print(ej_temp) # 1 value
-            bsed_depths = self.ej_thick_grid[crater_flag,...] * mixing_ratio # Petro and Pieters (2004)
+            # bsed_depths = self.ej_thick_grid[crater_flag,...] * mixing_ratio # Petro and Pieters (2004)
             # print(np.min(bsed_depths))
             # print(np.max(bsed_depths))
             # print(bsed_depths.shape) # n x 608 x 608
-            p = bsed_depths.shape[-1] # 608
+            # p = bsed_depths.shape[-1] # 608
+            m, n = self.psr.shape
 
-            # if there are nans for bsed_depth, replace with 0
-            # these occur inside craters
-            bsed_depths[np.isnan(bsed_depths)] = 0
-            mixing_ratio[np.isnan(mixing_ratio)] = 0
+            # # if there are nans for bsed_depth, replace with 0
+            # # these occur inside craters
+            # bsed_depths[np.isnan(bsed_depths)] = 0
+            # mixing_ratio[np.isnan(mixing_ratio)] = 0
             
             # interpolate melt fraction based on temperature and mixing ratio
             # these are sorted based on age descending so we can apply in order
-            for i in range(np.sum(crater_flag)):
-                curr_mix_r = mixing_ratio[i,...]
+            for i in range(len(df)):
+                
+                # filter to current crater
+                curr_df = df.loc[[i]]
+                # curr_mix_r = mixing_ratio[i,...]
+                
+                # compute mixing ratio
+                curr_dists = get_gc_dist_grid(curr_df, self.grdx, self.grdy, self.cfg, mask=True)
+                curr_mix_r = get_mixing_ratio_oberbeck(curr_dists, self.cfg)
+                curr_mix_r[np.isnan(curr_mix_r)] = 0
+
+                # compute melt fraction
                 curr_temp = ej_temp[i]
                 inputs = np.dstack((np.ones_like(curr_mix_r) * curr_temp, curr_mix_r))
                 # print(inputs.shape) # 608 x 608 x 2
-                inputs = inputs.reshape((p*p,2))
+                inputs = inputs.reshape((m*n,2))
                 # print(inputs.shape)
                 out_mean, _ = gp_predict(self.melt_frac_gp, self.lik, inputs, batch_size=1000, gpu=True)
-                melt_frac = out_mean.reshape((p,p))
+                melt_frac = out_mean.reshape((m, n))
             
                 # Scale by fraction lost from column (default 100%)
                 melt_frac *= self.cfg.ballistic_sed_frac_lost
+
+                # get current bsed depth
+                curr_ej = get_ejecta_thickness(curr_dists, curr_df.rad.values[:, np.newaxis, np.newaxis], self.cfg)
+                bsed_depth = curr_ej * curr_mix_r
+                bsed_depth[np.isnan(bsed_depth)] = 0
 
                 # fig, ax = plt.subplots(2,2)
                 # ax[0,0].imshow(dists_t[i,...])
@@ -591,7 +633,7 @@ class MoonPIES():
                 # this updates self.ice_col_grid in place
                 # print(bsed_depths[i,...].shpae)
                 # print(melt_frac.shape)
-                self.garden_ice_d(bsed_depths[i,...], melt_frac, first_ejecta=first_ejecta, bsed=True)
+                self.garden_ice_d(bsed_depth, melt_frac, first_ejecta=first_ejecta, bsed=True)
 
 
     # gardening function applied to all ice column pixels based on provided depth and fraction
