@@ -185,35 +185,32 @@ class MoonPIES():
             mask = self.dists_masked[cr_id,...] < row[['rad']].values
             self.dists_masked[cr_id, mask] = np.nan
             cr_id += 1
-        
-        # print(self.grdx.shape)
-        # print(self.crater_mask.shape) # 51 x 608 x 608
 
-        print("Computing PSR area...")
-        crater_mask = np.zeros_like(self.dists_masked)
-        psr_area = np.zeros_like(self.dists_masked)
+        print("Computing PSR areas")
+        self.crater_mask_all = np.zeros_like(self.psr)
+        self.psr_area = np.zeros_like(self.psr)
         coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
+        
+        print("Iterating...")
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
             # print(np.array(row['in_crater']).shape)
-            crater_mask[cr_id,...] = np.array(row['in_crater'])
+            crater_mask = np.array(row['in_crater'])
+            if row['age'] >= int(self.t):
+                self.crater_mask_all = np.any(np.dstack(crater_mask, self.crater_mask_all), axis=-1)
             # if np.isin(row.cname, self.cfg.coldtrap_names):
             #     self.coldtrap_flag[cr_id] = True
             coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
             if coldtrap_flag[cr_id]:
-                ct_mask = crater_mask[cr_id,...] * (self.psr == 1)
-                psr_area[cr_id] = row['psr_area'] * ct_mask
+                ct_mask = crater_mask * (self.psr == 1)
+                psr_area = row['psr_area'] * ct_mask
+                self.psr_area = np.maximum(psr_area, self.psr_area)
             cr_id += 1
 
-        self.psr_area = np.max(psr_area, axis=0)
-
-        craters = crater_mask[self.df['isbasin'] == False,...]
-        crater_ages = self.df[self.df['isbasin'] == False]['age']
-        basins = crater_mask[self.df['isbasin'],...]
-        basin_ages = self.df[self.df['isbasin']]['age']
-        self.crater_mask_all = np.any(craters[crater_ages >= int(self.t),...], axis=0)
-        self.basin_mask_all = np.any(basins[basin_ages >= int(self.t),...], axis=0)
+        # basins = crater_mask[self.df['isbasin'],...]
+        # basin_ages = self.df[self.df['isbasin']]['age']
+        # self.basin_mask_all = np.any(basins[basin_ages >= int(self.t),...], axis=0)
 
         # self.coldtrap_mask = self.crater_mask[np.where(coldtrap_flag)[0],...] * np.expand_dims(self.psr == 1, axis=0)
         # print(self.coldtrap_mask.shape) # should be 12 x 608 x 608
