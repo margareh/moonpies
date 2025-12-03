@@ -102,7 +102,8 @@ def get_gc_dist_grid(df, grdx, grdy, cfg, mask=True):
     for i, row in df.iterrows():
         if local_coords:
             x, y, crad = row[['x', 'y', 'rad']]
-            grd_dist[i] = np.sqrt((x-grdx)**2 + (y-grdy)**2)
+            out = np.sqrt((x-grdx)**2 + (y-grdy)**2).T
+            grd_dist[i] = out
         else:
             clon, clat, crad = row[["lon", "lat", "rad"]]
             grd_dist[i] = gc_dist(clon, clat, grdlon, grdlat)

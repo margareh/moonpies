@@ -44,12 +44,16 @@ from .processes.solar_wind import get_solar_wind_ice
 # calculate ejecta thickness from all craters for a given pixel
 def get_ejecta_mp(args):
     df = args[0] # index of crater to use
-    x = np.array(args[1])
-    y = np.array(args[2])
+    x = np.array(args[1])[np.newaxis,:]
+    y = np.array(args[2])[:,np.newaxis]
     cfg = args[3]
-    dists = get_gc_dist_grid(df, x, y, cfg, mask=True).reshape((len(df))) # ncrater
-    rad = df.rad.values
-    ej_thick_grid = np.sum(get_ejecta_thickness(dists, rad, cfg)) # 1 value
+    dists = get_gc_dist_grid(df, x, y, cfg, mask=True)
+    #print(dists.shape)
+    rad = df.rad.values[:,np.newaxis,np.newaxis]
+    ej_all = get_ejecta_thickness(dists, rad, cfg)
+    #print(ej_all.shape)
+    ej_thick_grid = np.sum(ej_all, axis=0)
+    #print(ej_thick_grid.shape)
     return ej_thick_grid
 
 # simulation class
@@ -77,8 +81,8 @@ class MoonPIES():
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
         self.grdy, self.grdx = get_grid_arrays(cfg, half=cfg.halfgrid)
-        print(self.grdx)
-        print(self.grdy)
+        print(self.grdx.shape)
+        print(self.grdy.shape)
         # this has a channel per time step (layer)
         self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
@@ -451,7 +455,7 @@ class MoonPIES():
     def deliver_ejecta(self, init=False):
         
         # make sure time is same data type because otherwise functions below won't work
-        t = np.array([self.t]).astype(self.cfg.dtype)
+        # t = np.array([self.t]).astype(self.cfg.dtype)
         # ej_ages = self.df.age.values
         # print(ej_ages / 1e6)
         # print(t)
@@ -459,11 +463,11 @@ class MoonPIES():
 
         if init:
             # crater_flag = (ej_ages >= t)
-            df = self.df[(self.df.age >= t)]
+            df = self.df[(self.df.age >= self.t)]
         else:
             # formed between previous time step and current one
             # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
-            df = self.df[(self.df.age >= t) & (self.df.age < t+self.cfg.timestep)]
+            df = self.df[(self.df.age >= self.t) & (self.df.age < self.t+self.cfg.timestep)]
         # print(crater_flag)
 
         # ej_formed = self.ej_thick_grid[crater_flag, ...]
@@ -472,6 +476,7 @@ class MoonPIES():
         m, n = self.psr.shape
         with Pool() as p:
             args = [(df, x, y, self.cfg) for x in self.grdx for y in self.grdy]
+            print(len(args))
             ej_formed = p.map(get_ejecta_mp, args)
         self.ej_col_grid[self.t_ind,...] = np.array(ej_formed).reshape((m, n))
         # self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
@@ -555,7 +560,7 @@ class MoonPIES():
     def bsed_garden_ice(self, first_ejecta=False):
         
         # flag which craters were created during this time period
-        t = np.array([self.t]).astype(self.cfg.dtype)
+        #t = np.array([self.t]).astype(self.cfg.dtype)
         # ej_ages = self.df.age.values
         # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
         # print(self.df.cname.values)
@@ -565,7 +570,7 @@ class MoonPIES():
 
         # formed between previous time step and current one
         # crater_flag = (ej_ages >= t) & (ej_ages < t+self.cfg.timestep)
-        df = self.df[(self.df.age >= t) & (self.df.age < t+self.cfg.timestep)]
+        df = self.df[(self.df.age >= self.t) & (self.df.age < self.t+self.cfg.timestep)]
         
         # only run if we're using ballistic sedimentation and there are 
         # cratering events in this time period
