@@ -208,7 +208,7 @@ class MoonPIES():
             cr_id += 1
 
         # drop the in crater flag to free up some memory
-        self.df.drop('in_crater', inplace=True)
+        self.df.drop('in_crater', axis=1, inplace=True)
 
         # basins = crater_mask[self.df['isbasin'],...]
         # basin_ages = self.df[self.df['isbasin']]['age']
