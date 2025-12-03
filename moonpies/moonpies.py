@@ -133,7 +133,7 @@ class MoonPIES():
             # n_crater = len(df_craters)
             # print(n_crater) # 24
         else:
-            df_craters = copy.copy(crater_db)
+            df_craters = crater_db
         
         df_craters["isbasin"] = False
         df_craters["icy_impactor"] = "no"
@@ -144,7 +144,7 @@ class MoonPIES():
                 # n_basin = len(df_basins)
                 # print(n_basin) # 27
             else:
-                df_basins = copy.copy(basin_db)
+                df_basins = basin_db
 
             df_basins["isbasin"] = True
             df_basins = random_icy_basins(df_basins, self.cfg, self.rng)
@@ -153,7 +153,7 @@ class MoonPIES():
             # randomization function also sorts based on age and name
             df = pd.concat([df_craters, df_basins])
         else:
-            df = copy.copy(df_craters)
+            df = df_craters
 
         self.df = randomize_crater_ages(df, self.cfg.timestep, self.rng)
         # print(len(self.df))
@@ -173,7 +173,7 @@ class MoonPIES():
             # print(self.slope.shape)
         else:
             # currently slope isn't used, so we aren't losing out on that if it isn't provided
-            self.psr = copy.copy(psr_mask)
+            self.psr = psr_mask
 
         # TODO: add computation of in_crater and psr_area flags if not already in dataframe
 
@@ -192,7 +192,6 @@ class MoonPIES():
         coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         
-        print("Iterating...")
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
             # print(np.array(row['in_crater']).shape)
@@ -207,6 +206,9 @@ class MoonPIES():
                 psr_area = row['psr_area'] * ct_mask
                 self.psr_area = np.maximum(psr_area, self.psr_area)
             cr_id += 1
+
+        # drop the in crater flag to free up some memory
+        self.df.drop('in_crater', inplace=True)
 
         # basins = crater_mask[self.df['isbasin'],...]
         # basin_ages = self.df[self.df['isbasin']]['age']
