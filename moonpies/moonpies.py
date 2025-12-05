@@ -90,7 +90,7 @@ class MoonPIES():
 
         # Load data and initialize useful things
         self.psr_area = np.zeros((self.grdy.shape[0], self.grdx.shape[1]))
-        self.update_crater_info(crater_db, basin_db, psr_mask)
+        self.update_crater_info(crater_db, basin_db, psr_mask, init=True)
 
         # Pre-compute overturn depth
         print("Getting overturn depth time...")
@@ -144,7 +144,7 @@ class MoonPIES():
 
     
     # update crater list and PSR masks
-    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None):
+    def update_crater_info(self, crater_db=None, basin_db=None, psr_mask=None, init=False):
 
         # crater info
         if crater_db is None:
@@ -211,19 +211,24 @@ class MoonPIES():
         coldtrap_flag = np.full((len(self.df)), False)
         cr_id = 0
         
+        if init:
+            t_comp = int(self.t)
+        else:
+            t_comp = int(self.t-self.cfg.timestep)
+
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
             # print(np.array(row['in_crater']).shape)
             crater_mask = np.array(row['in_crater'])
-            if row['age'] >= int(self.t):
+            if row['age'] >= t_comp:
                 self.crater_mask_all = np.any(np.dstack(crater_mask, self.crater_mask_all), axis=-1)
-            # if np.isin(row.cname, self.cfg.coldtrap_names):
-            #     self.coldtrap_flag[cr_id] = True
-            coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
-            if coldtrap_flag[cr_id]:
-                ct_mask = crater_mask * (self.psr == 1)
-                psr_area = row['psr_area'] * ct_mask
-                self.psr_area = np.maximum(psr_area, self.psr_area)
+                # if np.isin(row.cname, self.cfg.coldtrap_names):
+                #     self.coldtrap_flag[cr_id] = True
+                coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
+                if coldtrap_flag[cr_id]:
+                    ct_mask = crater_mask * (self.psr == 1)
+                    psr_area = row['psr_area'] * ct_mask
+                    self.psr_area = np.maximum(psr_area, self.psr_area)
             cr_id += 1
 
         # drop the in crater flag to free up some memory
