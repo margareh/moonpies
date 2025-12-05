@@ -329,6 +329,9 @@ class MoonPIES():
             i += 1
             self.t_ind += 1
 
+        # save final output after run is done
+        self.save_output()
+
     # run through all time steps
     def run_between(self, start_time, end_time):
         vprint(self.cfg, "Starting main loop...")
@@ -351,6 +354,9 @@ class MoonPIES():
             # increment counter and time index
             i += 1
             self.t_ind += 1
+
+        # save final output after run is done
+        self.save_output()
 
     # save the output
     def save_output(self):
