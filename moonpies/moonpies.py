@@ -221,7 +221,7 @@ class MoonPIES():
             # print(np.array(row['in_crater']).shape)
             crater_mask = np.array(row['in_crater'])
             if row['age'] >= t_comp:
-                self.crater_mask_all = np.any(np.dstack(crater_mask, self.crater_mask_all), axis=-1)
+                self.crater_mask_all = np.any(np.dstack((crater_mask, self.crater_mask_all)), axis=-1)
                 # if np.isin(row.cname, self.cfg.coldtrap_names):
                 #     self.coldtrap_flag[cr_id] = True
                 coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
@@ -230,6 +230,10 @@ class MoonPIES():
                     psr_area = row['psr_area'] * ct_mask
                     self.psr_area = np.maximum(psr_area, self.psr_area)
             cr_id += 1
+
+        # check psr area against mask (for init case)
+        if init:
+            self.psr *= (self.psr_area > 0.0001)
 
         # drop the in crater flag to free up some memory
         self.df.drop('in_crater', axis=1, inplace=True)
