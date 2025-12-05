@@ -99,6 +99,7 @@ def get_gc_dist_grid(df, grdx, grdy, cfg, mask=True):
     grd_dist = np.zeros((len(df), nx, ny), dtype=cfg.dtype)
     local_coords = True if 'x' in df.columns else False
 
+    df.reset_index(drop=True, inplace=True)
     for i, row in df.iterrows():
         if local_coords:
             x, y, crad = row[['x', 'y', 'rad']]

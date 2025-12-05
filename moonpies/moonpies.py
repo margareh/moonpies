@@ -216,19 +216,22 @@ class MoonPIES():
         else:
             t_comp = int(self.t-self.cfg.timestep)
 
+        drop_inds = []
         for i, row in self.df.iterrows():
             # self.crater_mask[cr_id,...] = (self.crater_dist_grid[cr_id] <= row['rad'])
             # print(np.array(row['in_crater']).shape)
             crater_mask = np.array(row['in_crater'])
             if row['age'] >= t_comp:
                 self.crater_mask_all = np.any(np.dstack((crater_mask, self.crater_mask_all)), axis=-1)
-                # if np.isin(row.cname, self.cfg.coldtrap_names):
-                #     self.coldtrap_flag[cr_id] = True
-                coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
-                if coldtrap_flag[cr_id]:
-                    ct_mask = crater_mask * (self.psr == 1)
-                    psr_area = row['psr_area'] * ct_mask
-                    self.psr_area = np.maximum(psr_area, self.psr_area)
+            if not init and row['age'] > int(self.t+self.cfg.timestep):
+                drop_inds.append(i)
+            # if np.isin(row.cname, self.cfg.coldtrap_names):
+            #     self.coldtrap_flag[cr_id] = True
+            coldtrap_flag[cr_id] = (row['psr_area'] >= 0.0001)
+            if coldtrap_flag[cr_id]:
+                ct_mask = crater_mask * (self.psr == 1)
+                psr_area = row['psr_area'] * ct_mask
+                self.psr_area = np.maximum(psr_area, self.psr_area)
             cr_id += 1
 
         # check psr area against mask (for init case)
@@ -237,6 +240,11 @@ class MoonPIES():
 
         # drop the in crater flag to free up some memory
         self.df.drop('in_crater', axis=1, inplace=True)
+
+        # drop old craters
+        print(len(self.df))
+        self.df.drop(drop_inds, axis=0, inplace=True)
+        print(len(self.df))
 
         # basins = crater_mask[self.df['isbasin'],...]
         # basin_ages = self.df[self.df['isbasin']]['age']
