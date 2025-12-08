@@ -81,8 +81,8 @@ class MoonPIES():
         # grdxsize_px = int(cfg.grdxsize / cfg.grdstep)
         # grdysize_px = int(cfg.grdysize / cfg.grdstep)
         self.grdy, self.grdx = get_grid_arrays(cfg, half=cfg.halfgrid)
-        print(self.grdx.shape)
-        print(self.grdy.shape)
+        # print(self.grdx.shape)
+        # print(self.grdy.shape)
         # this has a channel per time step (layer)
         self.ice_col_grid = np.zeros((len(self.time_arr), self.grdy.shape[0], self.grdx.shape[1]))
         self.ej_col_grid = np.zeros_like(self.ice_col_grid)
@@ -98,10 +98,11 @@ class MoonPIES():
         # print(self.overturn.shape) # 425 (time)
 
         # Compute initial ejecta thickness
-        print("Getting initial values of ejecta and ice")
-        # this is equivalent to the total ejecta thickness for all craters that have been formed
-        # by a specified time t
-        self.deliver_ejecta(init=True) # results stored in self.ej_col_grid
+        if len(self.df) > 0:
+            print("Getting initial values of ejecta and ice")
+            # this is equivalent to the total ejecta thickness for all craters that have been formed
+            # by a specified time t
+            self.deliver_ejecta(init=True) # results stored in self.ej_col_grid
 
         # Compute initial amount of ice
         # TODO: compare to prior method of delivering ice
@@ -242,9 +243,9 @@ class MoonPIES():
         self.df.drop('in_crater', axis=1, inplace=True)
 
         # drop old craters
-        print(len(self.df))
+        # print(len(self.df))
         self.df.drop(drop_inds, axis=0, inplace=True)
-        print(len(self.df))
+        # print(len(self.df))
 
         # basins = crater_mask[self.df['isbasin'],...]
         # basin_ages = self.df[self.df['isbasin']]['age']
@@ -313,7 +314,7 @@ class MoonPIES():
         
         # Loop through all timesteps
         i = 0
-        while self.t > self.cfg.timeend:
+        while self.t-self.cfg.timestep > self.cfg.timeend:
 
             # decrement time step
             self.t -= self.cfg.timestep
@@ -499,7 +500,7 @@ class MoonPIES():
         m, n = self.psr.shape
         with Pool() as p:
             args = [(df, x, y, self.cfg) for x in self.grdx for y in self.grdy]
-            print(len(args))
+            # print(len(args))
             ej_formed = p.map(get_ejecta_mp, args)
         self.ej_col_grid[self.t_ind,...] = np.array(ej_formed).reshape((m, n))
         # self.ej_col_grid[self.t_ind,...] = np.sum(ej_formed, axis=0)
